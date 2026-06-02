@@ -108,6 +108,13 @@
 .playerInfo span { font-size: 11px; color: var(--color-text-secondary); }
 
 .posBadge { font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 600; }
+.maxedDivider {
+  font-size: 11px; color: var(--color-text-tertiary); text-align: center;
+  padding: 8px 0 4px; border-top: 1px solid var(--color-border); margin-top: 4px;
+}
+.playerItemMaxed { opacity: 0.35; cursor: not-allowed; }
+.playerItemMaxed:hover { background: none !important; }
+
 .posGK   { background: var(--color-orange-dim);  color: var(--color-orange);  border: 1px solid var(--color-orange); }
 .posDEF  { background: var(--color-blue-dim);    color: var(--color-blue);    border: 1px solid var(--color-blue);   }
 .posMID  { background: var(--color-green-dim);   color: var(--color-green);   border: 1px solid var(--color-green);  }

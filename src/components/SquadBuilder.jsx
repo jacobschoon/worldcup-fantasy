@@ -66,10 +66,26 @@ export default function SquadBuilder({ onSave }) {
     if (onSave) onSave()
   }
 
+  // Count players per country in current squad (excluding the slot being replaced)
+  const countryCounts = {}
+  squad.forEach((p, i) => {
+    if (p && i !== activeSlot) {
+      countryCounts[p.country] = (countryCounts[p.country] || 0) + 1
+    }
+  })
+
   const eligible = activeSlot !== null
-    ? PLAYERS.filter(p => eligibleForSlot(p.pos, slotDefs[activeSlot]?.type) &&
-        (!search || p.name.toLowerCase().includes(search.toLowerCase()) || p.country.toLowerCase().includes(search.toLowerCase())))
+    ? PLAYERS.filter(p => {
+        if (!eligibleForSlot(p.pos, slotDefs[activeSlot]?.type)) return false
+        if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.country.toLowerCase().includes(search.toLowerCase())) return false
+        // Max 2 per nation — grey out if already at limit
+        return true
+      })
     : []
+
+  // Separate into available and maxed out
+  const eligibleAvailable = eligible.filter(p => (countryCounts[p.country] || 0) < 2)
+  const eligibleMaxed     = eligible.filter(p => (countryCounts[p.country] || 0) >= 2)
 
   // Build rows for pitch display
   const rows = formation ? [
@@ -180,7 +196,7 @@ export default function SquadBuilder({ onSave }) {
             />
             <div className={styles.playerList}>
               {eligible.length === 0 && <div className={styles.empty}>No players found</div>}
-              {eligible.map(p => (
+              {eligibleAvailable.map(p => (
                 <div key={p.name} className={styles.playerItem} onClick={() => selectPlayer(p)}>
                   <span className={styles.playerFlag}>{p.flag}</span>
                   <div className={styles.playerInfo}>
@@ -190,6 +206,21 @@ export default function SquadBuilder({ onSave }) {
                   <span className={`${styles.posBadge} ${styles['pos' + p.pos]}`}>{POS_LABEL[p.pos]}</span>
                 </div>
               ))}
+              {eligibleMaxed.length > 0 && (
+                <>
+                  <div className={styles.maxedDivider}>Max 2 per nation reached</div>
+                  {eligibleMaxed.map(p => (
+                    <div key={p.name} className={`${styles.playerItem} ${styles.playerItemMaxed}`}>
+                      <span className={styles.playerFlag}>{p.flag}</span>
+                      <div className={styles.playerInfo}>
+                        <strong>{p.name}</strong>
+                        <span>{p.country}</span>
+                      </div>
+                      <span className={`${styles.posBadge} ${styles['pos' + p.pos]}`}>{POS_LABEL[p.pos]}</span>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         </div>
