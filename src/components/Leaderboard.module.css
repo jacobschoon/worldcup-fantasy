@@ -1,0 +1,69 @@
+.wrap { display: flex; flex-direction: column; gap: 20px; }
+
+.mockBanner {
+  background: var(--color-accent-dim); border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md); padding: 10px 14px;
+  font-size: 13px; color: var(--color-accent); text-align: center;
+}
+
+.podium { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.podiumCard {
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); padding: 16px 12px; text-align: center;
+}
+.podiumFirst { background: var(--color-accent-dim); border-color: var(--color-accent); }
+.podiumMedal { font-size: 22px; margin-bottom: 6px; }
+.podiumTeam { font-size: 13px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.podiumFirst .podiumTeam { color: var(--color-accent); }
+.podiumManager { font-size: 11px; color: var(--color-text-tertiary); margin-bottom: 4px; }
+.podiumFirst .podiumManager { color: var(--color-accent); opacity: 0.7; }
+.podiumPts { font-size: 22px; font-weight: 700; color: var(--color-text); }
+.podiumFirst .podiumPts { color: var(--color-accent); }
+.podiumForm { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+.statsRow { display: flex; gap: 8px; }
+.statCard { flex: 1; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 12px 14px; }
+.statLabel { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+.statVal { font-size: 20px; font-weight: 700; color: var(--color-text); }
+.statSub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.toolbar { display: flex; align-items: center; gap: 10px; }
+.viewSelect { width: auto; flex: 1; }
+.refreshBtn { flex-shrink: 0; }
+.apiStatus { font-size: 11px; color: var(--color-text-tertiary); }
+
+.table { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
+.tableHeader {
+  display: grid; grid-template-columns: 28px 1fr 60px 24px;
+  padding: 8px 14px; background: var(--color-surface2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.tableHeader span:nth-child(3) { text-align: right; }
+
+.tableRow {
+  display: grid; grid-template-columns: 28px 1fr 60px 24px;
+  padding: 12px 14px; border-bottom: 1px solid var(--color-border);
+  cursor: pointer; transition: background 0.1s; align-items: center;
+}
+.tableRow:last-child { border-bottom: none; }
+.tableRow:hover, .tableRowExpanded { background: rgba(255,255,255,0.03); }
+.rankNum { font-size: 13px; color: var(--color-text-tertiary); font-weight: 600; }
+.teamCol { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.teamNameDisplay { font-size: 13px; font-weight: 600; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.managerDisplay { font-size: 11px; color: var(--color-text-tertiary); }
+.ptsDisplay { font-size: 14px; font-weight: 700; color: var(--color-green); text-align: right; }
+.chevron { font-size: 10px; color: var(--color-text-tertiary); text-align: right; }
+
+.squadExpand { padding: 12px 14px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 10px; }
+.squadSection { }
+.squadSectionLabel { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-tertiary); margin-bottom: 6px; font-weight: 600; }
+.squadPlayers { display: flex; flex-wrap: wrap; gap: 6px; }
+.playerChip {
+  display: flex; align-items: center; gap: 5px; font-size: 12px;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--color-border-strong); background: var(--color-surface2);
+  color: var(--color-text); cursor: default;
+}
+.chipPts { font-weight: 600; margin-left: 2px; color: var(--color-green); }
+.chipNeg { color: var(--color-red); }

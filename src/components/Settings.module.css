@@ -1,0 +1,28 @@
+.wrap { display: flex; flex-direction: column; gap: 28px; }
+.section { display: flex; flex-direction: column; gap: 12px; }
+.sectionTitle { font-size: 15px; font-weight: 600; color: var(--color-text); }
+.sectionDesc { font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; }
+.sectionDesc a { color: var(--color-accent); text-decoration: none; }
+.sectionDesc a:hover { text-decoration: underline; }
+
+.keyRow { display: flex; gap: 8px; }
+.keyRow input { flex: 1; }
+
+.testResult { font-size: 13px; padding: 8px 12px; border-radius: var(--radius-sm); }
+.ok  { background: var(--color-green-dim);  color: var(--color-green);  border: 1px solid var(--color-green);  }
+.err { background: var(--color-red-dim);    color: var(--color-red);    border: 1px solid var(--color-red);    }
+
+.savedMsg { font-size: 12px; color: var(--color-green); }
+.clearBtn { width: fit-content; font-size: 12px; color: var(--color-text-tertiary); border-color: transparent; padding: 4px 0; background: none; }
+.clearBtn:hover { color: var(--color-red); border-color: transparent; }
+
+.steps { padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.steps li { font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; }
+.steps a { color: var(--color-accent); text-decoration: none; }
+.steps strong { color: var(--color-text); }
+
+.notes { padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.notes li { font-size: 13px; color: var(--color-text-secondary); }
+.notes code { background: var(--color-surface2); padding: 1px 5px; border-radius: 4px; font-size: 12px; color: var(--color-accent); }
+
+.resetRow { display: flex; gap: 8px; flex-wrap: wrap; }

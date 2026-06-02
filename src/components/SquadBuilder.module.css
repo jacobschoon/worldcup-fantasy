@@ -1,0 +1,116 @@
+.wrap { padding: 0; }
+
+.nameRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12px; color: var(--color-text-secondary); }
+.namePreview { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 20px; }
+.namePreview strong { color: var(--color-accent); }
+
+.section { margin-bottom: 20px; }
+.section > label { font-size: 12px; color: var(--color-text-secondary); display: block; margin-bottom: 10px; }
+
+.formationBtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.fBtn { padding: 6px 14px; border-radius: 999px; font-size: 13px; }
+.fBtnActive { background: var(--color-accent-dim); border-color: var(--color-accent); color: var(--color-accent); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; font-size: 11px; }
+.legendGk   { color: var(--color-orange); }
+.legendDef  { color: var(--color-blue); }
+.legendMid  { color: var(--color-green); }
+.legendWin  { color: var(--color-purple); }
+.legendSt   { color: var(--color-red); }
+
+.pitch {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px 12px;
+  margin-bottom: 20px;
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+}
+.pitchEmpty { text-align: center; color: var(--color-text-tertiary); font-size: 13px; }
+.pitchRow { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+
+.slot { width: 76px; text-align: center; }
+.circle {
+  width: 50px; height: 50px; border-radius: 50%;
+  border: 1.5px dashed var(--color-border-strong);
+  background: var(--color-surface);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 5px; cursor: pointer; position: relative;
+  transition: border-color 0.15s;
+}
+.circle:hover { border-color: var(--color-accent); }
+.plusIcon { font-size: 20px; color: var(--color-text-tertiary); line-height: 1; }
+.initials { font-size: 13px; font-weight: 600; }
+
+.filledGk  { border-style: solid; border-color: var(--color-orange);  background: var(--color-orange-dim); }
+.filledDef { border-style: solid; border-color: var(--color-blue);    background: var(--color-blue-dim);   }
+.filledMid { border-style: solid; border-color: var(--color-green);   background: var(--color-green-dim);  }
+.filledFwd { border-style: solid; border-color: var(--color-red);     background: var(--color-red-dim);    }
+
+.filledGk  .initials { color: var(--color-orange); }
+.filledDef .initials { color: var(--color-blue);   }
+.filledMid .initials { color: var(--color-green);  }
+.filledFwd .initials { color: var(--color-red);    }
+
+.removeBtn {
+  position: absolute; top: -4px; right: -4px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--color-red-dim); border: 1px solid var(--color-red);
+  color: var(--color-red); font-size: 11px; display: none;
+  align-items: center; justify-content: center; padding: 0;
+}
+.circle:hover .removeBtn { display: flex; }
+
+.slotLabel { font-size: 10px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
+.slotName  { font-size: 11px; color: var(--color-text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 74px; }
+
+.progress { margin-bottom: 20px; }
+.progressLabel { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.progressBar { height: 3px; background: var(--color-border); border-radius: 2px; overflow: hidden; }
+.progressFill { height: 100%; background: var(--color-accent); border-radius: 2px; transition: width 0.3s; }
+
+.cta { display: flex; align-items: center; gap: 12px; }
+.ctaNote { font-size: 12px; color: var(--color-text-tertiary); }
+.savedMsg { font-size: 12px; color: var(--color-green); }
+
+/* Modal */
+.modalBg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.modal {
+  background: var(--color-surface); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg); padding: 20px; width: 360px; max-width: 100%;
+  max-height: 85vh; display: flex; flex-direction: column; gap: 12px;
+}
+.modalHeader { display: flex; justify-content: space-between; align-items: flex-start; }
+.modalHeader h2 { font-size: 16px; font-weight: 600; color: var(--color-text); }
+.modalSub { font-size: 12px; color: var(--color-text-tertiary); margin-top: 3px; }
+.closeBtn { background: none; border: none; color: var(--color-text-tertiary); font-size: 18px; padding: 0; width: auto; }
+.closeBtn:hover { color: var(--color-text); border-color: transparent; }
+
+.playerList { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.empty { text-align: center; padding: 2rem; color: var(--color-text-tertiary); font-size: 13px; }
+.playerItem {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background 0.1s;
+}
+.playerItem:hover { background: rgba(255,255,255,0.05); }
+.playerFlag { font-size: 20px; width: 28px; text-align: center; }
+.playerInfo { flex: 1; }
+.playerInfo strong { font-size: 13px; font-weight: 500; color: var(--color-text); display: block; }
+.playerInfo span { font-size: 11px; color: var(--color-text-secondary); }
+
+.posBadge { font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 600; }
+.posGK   { background: var(--color-orange-dim);  color: var(--color-orange);  border: 1px solid var(--color-orange); }
+.posDEF  { background: var(--color-blue-dim);    color: var(--color-blue);    border: 1px solid var(--color-blue);   }
+.posMID  { background: var(--color-green-dim);   color: var(--color-green);   border: 1px solid var(--color-green);  }
+.posAMID { background: var(--color-green-dim);   color: var(--color-green);   border: 1px solid var(--color-green);  }
+.posWIN  { background: var(--color-purple-dim);  color: var(--color-purple);  border: 1px solid var(--color-purple); }
+.posST   { background: var(--color-red-dim);     color: var(--color-red);     border: 1px solid var(--color-red);    }

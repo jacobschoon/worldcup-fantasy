@@ -1,0 +1,26 @@
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+.header { background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.headerInner { max-width: 680px; margin: 0 auto; padding: 16px 20px; }
+.logo { display: flex; align-items: center; gap: 12px; }
+.logoIcon { font-size: 28px; }
+.logoTitle { font-size: 18px; font-weight: 700; color: var(--color-text); line-height: 1.1; }
+.logoSub { font-size: 12px; color: var(--color-accent); font-weight: 600; letter-spacing: 0.05em; }
+
+.nav { background: var(--color-surface); border-bottom: 1px solid var(--color-border); position: sticky; top: 0; z-index: 10; }
+.navInner { max-width: 680px; margin: 0 auto; padding: 0 20px; display: flex; gap: 0; overflow-x: auto; }
+.navBtn {
+  padding: 14px 16px; border: none; border-bottom: 2px solid transparent;
+  border-radius: 0; background: none; color: var(--color-text-secondary);
+  font-size: 13px; font-weight: 500; white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.navBtn:hover { color: var(--color-text); border-color: transparent; }
+.navBtnActive { color: var(--color-accent) !important; border-bottom-color: var(--color-accent) !important; }
+
+.main { flex: 1; padding: 24px 20px; }
+.content { max-width: 680px; margin: 0 auto; }
+
+.pageHeader { margin-bottom: 24px; }
+.pageHeader h1 { font-size: 22px; font-weight: 700; color: var(--color-text); margin-bottom: 4px; }
+.pageHeader p { font-size: 14px; color: var(--color-text-secondary); }
