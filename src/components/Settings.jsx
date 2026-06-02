@@ -7,6 +7,23 @@ export default function Settings() {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState('')
 
+  const [showClearPin, setShowClearPin] = useState(false)
+  const [clearPin, setClearPin]         = useState('')
+  const [clearError, setClearError]     = useState('')
+
+  async function clearAllTeams() {
+    if (clearPin !== '2026') { setClearError('Incorrect PIN'); setClearPin(''); return }
+    localStorage.removeItem('wc_teams')
+    try {
+      await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear', pin: '2026' }),
+      })
+    } catch { /* localStorage already cleared */ }
+    window.location.reload()
+  }
+
   function save() {
     localStorage.setItem('wc_api_key', key.trim())
     setSaved(true)
@@ -90,9 +107,27 @@ export default function Settings() {
       <div className={styles.section}>
         <h2 className={styles.sectionTitle}>Reset data</h2>
         <div className={styles.resetRow}>
-          <button onClick={() => { if (confirm('Clear all saved teams?')) { localStorage.removeItem('wc_teams'); window.location.reload() } }}>
-            Clear all teams
-          </button>
+          {!showClearPin ? (
+            <button onClick={() => { setShowClearPin(true); setClearPin(''); setClearError('') }}>
+              Clear all teams
+            </button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <input
+                autoFocus
+                type="password"
+                maxLength={4}
+                placeholder="Commissioner PIN"
+                value={clearPin}
+                onChange={e => { setClearPin(e.target.value.replace(/\D/g, '')); setClearError('') }}
+                onKeyDown={e => e.key === 'Enter' && clearAllTeams()}
+                style={{ width: 130, letterSpacing: '0.2em' }}
+              />
+              <button onClick={clearAllTeams}>Confirm clear</button>
+              <button onClick={() => setShowClearPin(false)}>Cancel</button>
+              {clearError && <span style={{ color: 'red', fontSize: 13 }}>{clearError}</span>}
+            </div>
+          )}
           <button onClick={() => { if (confirm('Clear all match stats?')) {
             Object.keys(localStorage).filter(k => k.startsWith('wc_stats_') || k.startsWith('wc_cache_')).forEach(k => localStorage.removeItem(k))
             window.location.reload()

@@ -57,7 +57,18 @@ export default async function handler(req, res) {
         console.log('[api/teams] POST — body via stream:', JSON.stringify(body).slice(0, 200))
       }
 
-      const { pin: rawPin, ...team } = body
+      const { pin: rawPin, action, ...team } = body
+
+      if (action === 'clear') {
+        if (String(rawPin) !== '2026') {
+          console.log('[api/teams] POST clear — PIN mismatch')
+          return res.status(401).json({ error: 'Incorrect PIN' })
+        }
+        await redis.del('wc_teams')
+        console.log('[api/teams] POST — wc_teams cleared')
+        return res.status(200).json({ ok: true, cleared: true })
+      }
+
       console.log('[api/teams] POST — manager:', team.manager, '| pin present:', !!rawPin)
 
       const teams = (await redis.get('wc_teams')) || []
