@@ -504,6 +504,7 @@ export const PLAYERS = [
   { name: 'Robin Le Normand',     country: 'Spain',     flag: '🇪🇸', pos: 'DEF'  },
   { name: 'Dani Carvajal',        country: 'Spain',     flag: '🇪🇸', pos: 'DEF'  },
   { name: 'Alejandro Balde',      country: 'Spain',     flag: '🇪🇸', pos: 'DEF'  },
+  { name: 'Marc Cucurella',       country: 'Spain',     flag: '🇪🇸', pos: 'DEF'  },
   { name: 'Rodri',                country: 'Spain',     flag: '🇪🇸', pos: 'MID'  },
   { name: 'Fabian Ruiz',          country: 'Spain',     flag: '🇪🇸', pos: 'MID'  },
   { name: 'Mikel Merino',         country: 'Spain',     flag: '🇪🇸', pos: 'MID'  },
