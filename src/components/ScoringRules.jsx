@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { DEFAULT_RULES } from '../data.js'
 import styles from './ScoringRules.module.css'
 
+const COMMISSIONER_PIN = '2026'
+
 const RULE_DEFS = [
   { group: 'Playing time', rules: [
     { id: 'play_short', label: '1–60 mins played',  desc: 'Any player on the pitch',          min: 0, max: 3  },
@@ -16,8 +18,8 @@ const RULE_DEFS = [
     { id: 'pen_miss',  label: 'Penalty missed',         desc: 'Any position',                        min: -5, max: 0 },
   ]},
   { group: 'Clean sheets', rules: [
-    { id: 'clean_gk',  label: 'Clean sheet — GK',       desc: '45+ mins, team concedes 0',                    min: 0, max: 10 },
-    { id: 'clean_def', label: 'Clean sheet — DEF slot',  desc: '45+ mins, team concedes 0',                    min: 0, max: 10 },
+    { id: 'clean_gk',  label: 'Clean sheet — GK',       desc: '45+ mins, team concedes 0',                        min: 0, max: 10 },
+    { id: 'clean_def', label: 'Clean sheet — DEF slot',  desc: '45+ mins, team concedes 0',                        min: 0, max: 10 },
     { id: 'clean_mid', label: 'Clean sheet — MID slot',  desc: '45+ mins, team concedes 0 (incl. wingers in MID)', min: 0, max: 6  },
   ]},
   { group: 'Goalkeeping', rules: [
@@ -33,25 +35,39 @@ const RULE_DEFS = [
 
 export default function ScoringRules() {
   const stored = (() => { try { return JSON.parse(localStorage.getItem('wc_rules')) || DEFAULT_RULES } catch { return DEFAULT_RULES } })()
-  const [values, setValues] = useState({ ...DEFAULT_RULES, ...stored })
-  const [saved, setSaved]   = useState(false)
+  const [values, setValues]       = useState({ ...DEFAULT_RULES, ...stored })
+  const [saved, setSaved]         = useState(false)
+  const [unlocked, setUnlocked]   = useState(false)
+  const [pinInput, setPinInput]   = useState('')
+  const [pinError, setPinError]   = useState(false)
+
+  function tryUnlock() {
+    if (pinInput === COMMISSIONER_PIN) {
+      setUnlocked(true)
+      setPinError(false)
+    } else {
+      setPinError(true)
+      setPinInput('')
+    }
+  }
 
   function adjust(id, delta) {
+    if (!unlocked) return
     const def = RULE_DEFS.flatMap(g => g.rules).find(r => r.id === id)
     setValues(v => ({ ...v, [id]: Math.max(def.min, Math.min(def.max, v[id] + delta)) }))
   }
 
   function save() {
+    if (!unlocked) return
     localStorage.setItem('wc_rules', JSON.stringify(values))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
 
-  // Live example — Mbappé 90 mins, 1 goal (FWD slot), 1 assist, France keep clean sheet
   const exLines = [
-    { label: '90 mins (61+)',      pts: values.play_long  },
-    { label: '1 goal (FWD slot)',  pts: values.goal_fwd   },
-    { label: '1 assist',           pts: values.assist     },
+    { label: '90 mins (61+)',      pts: values.play_long },
+    { label: '1 goal (FWD slot)',  pts: values.goal_fwd  },
+    { label: '1 assist',           pts: values.assist    },
   ]
   const exTotal = exLines.reduce((s, l) => s + l.pts, 0)
 
@@ -83,9 +99,9 @@ export default function ScoringRules() {
                     <span className={styles.ruleDesc}>{rule.desc}</span>
                   </div>
                   <div className={styles.stepper}>
-                    <button onClick={() => adjust(rule.id, -1)}>−</button>
+                    <button onClick={() => adjust(rule.id, -1)} disabled={!unlocked}>−</button>
                     <span className={`${styles.val} ${v > 0 ? styles.pos : v < 0 ? styles.neg : styles.zero}`}>{v}</span>
-                    <button onClick={() => adjust(rule.id, 1)}>+</button>
+                    <button onClick={() => adjust(rule.id, 1)} disabled={!unlocked}>+</button>
                   </div>
                   <span className={styles.ptsLabel}>pts</span>
                 </div>
@@ -109,10 +125,30 @@ export default function ScoringRules() {
         </div>
       </div>
 
-      <div className={styles.cta}>
-        <button className="primary" onClick={save}>Lock in rules</button>
-        {saved && <span className={styles.savedMsg}>✓ Rules saved!</span>}
-      </div>
+      {!unlocked ? (
+        <div className={styles.pinWrap}>
+          <div className={styles.pinLabel}>Commissioner PIN required to edit</div>
+          <div className={styles.pinRow}>
+            <input
+              type="password"
+              maxLength={4}
+              placeholder="Enter PIN"
+              value={pinInput}
+              onChange={e => { setPinInput(e.target.value); setPinError(false) }}
+              onKeyDown={e => e.key === 'Enter' && tryUnlock()}
+              className={styles.pinInput}
+            />
+            <button onClick={tryUnlock}>Unlock</button>
+          </div>
+          {pinError && <div className={styles.pinError}>Incorrect PIN</div>}
+        </div>
+      ) : (
+        <div className={styles.cta}>
+          <button className="primary" onClick={save}>Lock in rules</button>
+          {saved && <span className={styles.savedMsg}>✓ Rules saved!</span>}
+          <button className={styles.lockBtn} onClick={() => setUnlocked(false)}>🔒 Lock</button>
+        </div>
+      )}
     </div>
   )
 }
