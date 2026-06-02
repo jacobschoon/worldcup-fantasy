@@ -2,27 +2,14 @@ import { useState } from 'react'
 import styles from './Settings.module.css'
 
 export default function Settings() {
-  const [key, setKey]       = useState(localStorage.getItem('wc_api_key') || '')
-  const [saved, setSaved]   = useState(false)
-  const [testing, setTesting] = useState(false)
+  const [key, setKey]           = useState(localStorage.getItem('wc_api_key') || '')
+  const [saved, setSaved]       = useState(false)
+  const [testing, setTesting]   = useState(false)
   const [testResult, setTestResult] = useState('')
 
   const [showClearPin, setShowClearPin] = useState(false)
-  const [clearPin, setClearPin]         = useState('')
-  const [clearError, setClearError]     = useState('')
-
-  async function clearAllTeams() {
-    if (clearPin !== '2026') { setClearError('Incorrect PIN'); setClearPin(''); return }
-    localStorage.removeItem('wc_teams')
-    try {
-      await fetch('/api/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear', pin: '2026' }),
-      })
-    } catch { /* localStorage already cleared */ }
-    window.location.reload()
-  }
+  const [clearPinValue, setClearPinValue] = useState('')
+  const [clearPinError, setClearPinError] = useState('')
 
   function save() {
     localStorage.setItem('wc_api_key', key.trim())
@@ -53,6 +40,23 @@ export default function Settings() {
       setTestResult('✗ Connection failed — check your key')
     }
     setTesting(false)
+  }
+
+  async function confirmClearTeams() {
+    if (clearPinValue !== '2026') {
+      setClearPinError('Incorrect PIN')
+      setClearPinValue('')
+      return
+    }
+    localStorage.removeItem('wc_teams')
+    try {
+      await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear', pin: '2026' }),
+      })
+    } catch { /* localStorage already cleared */ }
+    window.location.reload()
   }
 
   return (
@@ -107,31 +111,39 @@ export default function Settings() {
       <div className={styles.section}>
         <h2 className={styles.sectionTitle}>Reset data</h2>
         <div className={styles.resetRow}>
-          {!showClearPin ? (
-            <button onClick={() => { setShowClearPin(true); setClearPin(''); setClearError('') }}>
+
+          {!showClearPin && (
+            <button onClick={() => { setShowClearPin(true); setClearPinValue(''); setClearPinError('') }}>
               Clear all teams
             </button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <input
-                autoFocus
-                type="password"
-                maxLength={4}
-                placeholder="Commissioner PIN"
-                value={clearPin}
-                onChange={e => { setClearPin(e.target.value.replace(/\D/g, '')); setClearError('') }}
-                onKeyDown={e => e.key === 'Enter' && clearAllTeams()}
-                style={{ width: 130, letterSpacing: '0.2em' }}
-              />
-              <button onClick={clearAllTeams}>Confirm clear</button>
-              <button onClick={() => setShowClearPin(false)}>Cancel</button>
-              {clearError && <span style={{ color: 'red', fontSize: 13 }}>{clearError}</span>}
+          )}
+
+          {showClearPin && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  autoFocus
+                  type="password"
+                  maxLength={4}
+                  placeholder="Commissioner PIN"
+                  value={clearPinValue}
+                  onChange={e => { setClearPinValue(e.target.value.replace(/\D/g, '')); setClearPinError('') }}
+                  onKeyDown={e => e.key === 'Enter' && confirmClearTeams()}
+                  style={{ width: 140, letterSpacing: '0.25em', textAlign: 'center' }}
+                />
+                <button onClick={confirmClearTeams}>Confirm</button>
+                <button onClick={() => { setShowClearPin(false); setClearPinError('') }}>Cancel</button>
+              </div>
+              {clearPinError && (
+                <span style={{ color: 'red', fontSize: 13 }}>{clearPinError}</span>
+              )}
             </div>
           )}
-          <button onClick={() => { if (confirm('Clear all match stats?')) {
+
+          <button onClick={() => {
             Object.keys(localStorage).filter(k => k.startsWith('wc_stats_') || k.startsWith('wc_cache_')).forEach(k => localStorage.removeItem(k))
             window.location.reload()
-          }}}>
+          }}>
             Clear cached stats
           </button>
           <button onClick={() => { localStorage.removeItem('wc_rules'); window.location.reload() }}>
