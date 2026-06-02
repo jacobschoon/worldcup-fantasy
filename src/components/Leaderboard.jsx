@@ -102,10 +102,6 @@ function getRules() {
 function getTeams() {
   try { const s = JSON.parse(localStorage.getItem('wc_teams') || '[]'); return s.length ? s : MOCK_TEAMS } catch { return MOCK_TEAMS }
 }
-function getStats(matchdayKey) {
-  try { return JSON.parse(localStorage.getItem(`wc_stats_${matchdayKey}`) || '{}') } catch { return {} }
-}
-
 function hashPin(pin) {
   let h = 0
   for (let i = 0; i < pin.length; i++) { h = (Math.imul(31, h) + pin.charCodeAt(i)) | 0 }
@@ -123,6 +119,21 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   const [editTarget, setEditTarget] = useState(null)
   const [editPin, setEditPin]       = useState('')
   const [editError, setEditError]   = useState('')
+  const [apiTeams, setApiTeams]     = useState(null)
+  const [apiStats, setApiStats]     = useState({})
+  const [teamsLoading, setTeamsLoading] = useState(true)
+
+  async function loadFromApi() {
+    setTeamsLoading(true)
+    try {
+      const [tr, sr] = await Promise.all([fetch('/api/teams'), fetch('/api/stats')])
+      if (tr.ok) { const d = await tr.json(); if (Array.isArray(d)) setApiTeams(d) }
+      if (sr.ok) { const d = await sr.json(); if (d && !d.error) setApiStats(d) }
+    } catch { /* fall back to localStorage */ }
+    setTeamsLoading(false)
+  }
+
+  useEffect(() => { loadFromApi() }, [])
 
   function openEditModal(e, team) {
     e.stopPropagation()
@@ -162,7 +173,19 @@ export default function Leaderboard({ onEditTeam, setTab }) {
         Object.assign(existing, parsed)
         localStorage.setItem(`wc_stats_${round}`, JSON.stringify(existing))
         localStorage.setItem(cacheKey, '1')
+        try {
+          await fetch('/api/stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ round, stats: existing }),
+          })
+        } catch { /* localStorage fallback already saved */ }
       }
+      try {
+        const [tr, sr] = await Promise.all([fetch('/api/teams'), fetch('/api/stats')])
+        if (tr.ok) { const d = await tr.json(); if (Array.isArray(d)) setApiTeams(d) }
+        if (sr.ok) { const d = await sr.json(); if (d && !d.error) setApiStats(d) }
+      } catch { /* ignore */ }
       setApiStatus('Updated just now')
       forceUpdate(n => n + 1)
     } catch (e) {
@@ -172,13 +195,20 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   }
 
   const rules = getRules()
-  const teams = getTeams()
-  const usingMock = !localStorage.getItem('wc_teams') || JSON.parse(localStorage.getItem('wc_teams') || '[]').length === 0
+  function getStats(key) {
+    if (Object.keys(apiStats).length > 0) return apiStats[key] || {}
+    try { return JSON.parse(localStorage.getItem(`wc_stats_${key}`) || '{}') } catch { return {} }
+  }
+  const localStoredTeams = (() => { try { return JSON.parse(localStorage.getItem('wc_teams') || '[]') } catch { return [] } })()
+  const resolvedTeams = (apiTeams && apiTeams.length > 0) ? apiTeams : localStoredTeams
+  const usingMock = resolvedTeams.length === 0
+  const teams = usingMock ? MOCK_TEAMS : resolvedTeams
 
-  const liveStatKeys = Object.keys(localStorage)
-    .filter(k => k.startsWith('wc_stats_'))
-    .map(k => k.replace('wc_stats_', ''))
-    .filter(k => !k.startsWith('fixture_'))
+  const liveStatKeys = Object.keys(apiStats).length > 0
+    ? Object.keys(apiStats)
+    : Object.keys(localStorage)
+        .filter(k => k.startsWith('wc_stats_') && !k.includes('fixture_'))
+        .map(k => k.replace('wc_stats_', ''))
 
   function playerTotalResult(p) {
     if (liveStatKeys.length > 0) {
@@ -203,7 +233,10 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   return (
     <>
     <div className={styles.wrap}>
-      {usingMock && (
+      {teamsLoading && apiTeams === null && (
+        <div className={styles.mockBanner}>Loading teams…</div>
+      )}
+      {!teamsLoading && usingMock && (
         <div className={styles.mockBanner}>
           Showing mock data — teams saved in the squad builder will appear here
         </div>

@@ -110,7 +110,7 @@ export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
   const filled = squad.filter(Boolean).length
   const canSave = filled === 11 && formation && teamName.trim() && managerName.trim() && pin.length === 4
 
-  function saveTeam() {
+  async function saveTeam() {
     const team = {
       manager: managerName.trim(),
       teamName: teamName.trim(),
@@ -122,6 +122,13 @@ export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
     const idx = existing.findIndex(t => t.manager === team.manager)
     if (idx > -1) existing[idx] = team; else existing.push(team)
     localStorage.setItem('wc_teams', JSON.stringify(existing))
+    try {
+      await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...team, pin }),
+      })
+    } catch { /* localStorage already saved as fallback */ }
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
     if (onSave) onSave()
