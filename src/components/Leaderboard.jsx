@@ -127,9 +127,18 @@ export default function Leaderboard({ onEditTeam, setTab }) {
     setTeamsLoading(true)
     try {
       const [tr, sr] = await Promise.all([fetch('/api/teams'), fetch('/api/stats')])
-      if (tr.ok) { const d = await tr.json(); if (Array.isArray(d)) setApiTeams(d) }
+      if (tr.ok) {
+        const d = await tr.json()
+        console.log('[Leaderboard] GET /api/teams:', d)
+        if (Array.isArray(d)) setApiTeams(d)
+        else console.warn('[Leaderboard] /api/teams returned non-array:', d)
+      } else {
+        console.warn('[Leaderboard] GET /api/teams status:', tr.status)
+      }
       if (sr.ok) { const d = await sr.json(); if (d && !d.error) setApiStats(d) }
-    } catch { /* fall back to localStorage */ }
+    } catch (e) {
+      console.warn('[Leaderboard] loadFromApi error:', e)
+    }
     setTeamsLoading(false)
   }
 

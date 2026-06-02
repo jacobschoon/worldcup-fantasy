@@ -129,13 +129,15 @@ export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...team, pin }),
       })
+      const data = await res.json().catch(() => ({}))
+      console.log('[SquadBuilder] POST /api/teams:', res.status, data)
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        setSaveError(err.error || 'Could not sync to server — saved locally only')
+        setSaveError(data.error || 'Could not sync to server — saved locally only')
       } else {
         setSaveError('')
       }
-    } catch {
+    } catch (e) {
+      console.warn('[SquadBuilder] POST /api/teams error:', e)
       setSaveError('Could not reach server — saved locally only')
     }
     setSaved(true)
