@@ -126,7 +126,9 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   async function loadFromApi() {
     setTeamsLoading(true)
     try {
+      console.log('[Leaderboard] fetching /api/teams and /api/stats')
       const [tr, sr] = await Promise.all([fetch('/api/teams'), fetch('/api/stats')])
+      console.log('[Leaderboard] /api/teams status:', tr.status)
       if (tr.ok) {
         const d = await tr.json()
         console.log('[Leaderboard] GET /api/teams:', d)
