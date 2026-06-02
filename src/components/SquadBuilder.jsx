@@ -124,20 +124,25 @@ export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
     if (idx > -1) existing[idx] = team; else existing.push(team)
     localStorage.setItem('wc_teams', JSON.stringify(existing))
     try {
+      const body = JSON.stringify({ ...team, pin })
+      console.log('[SquadBuilder] POSTing to /api/teams, body length:', body.length, 'manager:', team.manager)
       const res = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...team, pin }),
+        body,
       })
       const data = await res.json().catch(() => ({}))
-      console.log('[SquadBuilder] POST /api/teams:', res.status, data)
+      console.log('[SquadBuilder] POST /api/teams response:', res.status, data)
       if (!res.ok) {
-        setSaveError(data.error || 'Could not sync to server — saved locally only')
+        const msg = data.error || `Server error ${res.status}`
+        alert('[SquadBuilder] POST /api/teams failed: ' + msg)
+        setSaveError(msg)
       } else {
         setSaveError('')
       }
     } catch (e) {
       console.warn('[SquadBuilder] POST /api/teams error:', e)
+      alert('[SquadBuilder] POST /api/teams threw: ' + JSON.stringify(e.message))
       setSaveError('Could not reach server — saved locally only')
     }
     setSaved(true)
