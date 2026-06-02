@@ -234,6 +234,7 @@ export const PLAYERS = [
   { name: 'Marcus Thuram',        country: 'France',    flag: '🇫🇷', pos: 'ST'   },
   { name: 'Olivier Giroud',       country: 'France',    flag: '🇫🇷', pos: 'ST'   },
   { name: 'Bradley Barcola',      country: 'France',    flag: '🇫🇷', pos: 'WIN'  },
+  { name: 'Michael Olise',        country: 'France',    flag: '🇫🇷', pos: 'WIN'  },
   { name: 'Randal Kolo Muani',    country: 'France',    flag: '🇫🇷', pos: 'ST'   },
 
   // ===== GERMANY =====
@@ -281,25 +282,6 @@ export const PLAYERS = [
   { name: 'Sardar Azmoun',        country: 'Iran',      flag: '🇮🇷', pos: 'ST'   },
   { name: 'Mehdi Taremi',         country: 'Iran',      flag: '🇮🇷', pos: 'ST'   },
   { name: 'Karim Ansarifard',     country: 'Iran',      flag: '🇮🇷', pos: 'ST'   },
-
-  // ===== ITALY =====
-  { name: 'Gianluigi Donnarumma', country: 'Italy',     flag: '🇮🇹', pos: 'GK'   },
-  { name: 'Alex Meret',           country: 'Italy',     flag: '🇮🇹', pos: 'GK'   },
-  { name: 'Guglielmo Vicario',    country: 'Italy',     flag: '🇮🇹', pos: 'GK'   },
-  { name: 'Alessandro Bastoni',   country: 'Italy',     flag: '🇮🇹', pos: 'DEF'  },
-  { name: 'Giovanni Di Lorenzo',  country: 'Italy',     flag: '🇮🇹', pos: 'DEF'  },
-  { name: 'Leonardo Bonucci',     country: 'Italy',     flag: '🇮🇹', pos: 'DEF'  },
-  { name: 'Giorgio Scalvini',     country: 'Italy',     flag: '🇮🇹', pos: 'DEF'  },
-  { name: 'Federico Dimarco',     country: 'Italy',     flag: '🇮🇹', pos: 'DEF'  },
-  { name: 'Jorginho',             country: 'Italy',     flag: '🇮🇹', pos: 'MID'  },
-  { name: 'Nicolò Barella',       country: 'Italy',     flag: '🇮🇹', pos: 'MID'  },
-  { name: 'Lorenzo Pellegrini',   country: 'Italy',     flag: '🇮🇹', pos: 'AMID' },
-  { name: 'Sandro Tonali',        country: 'Italy',     flag: '🇮🇹', pos: 'MID'  },
-  { name: 'Federico Chiesa',      country: 'Italy',     flag: '🇮🇹', pos: 'WIN'  },
-  { name: 'Gianluca Scamacca',    country: 'Italy',     flag: '🇮🇹', pos: 'ST'   },
-  { name: 'Ciro Immobile',        country: 'Italy',     flag: '🇮🇹', pos: 'ST'   },
-  { name: 'Mateo Retegui',        country: 'Italy',     flag: '🇮🇹', pos: 'ST'   },
-  { name: 'Giacomo Raspadori',    country: 'Italy',     flag: '🇮🇹', pos: 'AMID' },
 
   // ===== JAPAN =====
   { name: 'Shuichi Gonda',        country: 'Japan',     flag: '🇯🇵', pos: 'GK'   },
