@@ -175,29 +175,24 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   const teams = getTeams()
   const usingMock = !localStorage.getItem('wc_teams') || JSON.parse(localStorage.getItem('wc_teams') || '[]').length === 0
 
-  function getPlayerStats(playerName, matchdayKey) {
-    if (matchdayKey === 'mock') return MOCK_STATS[playerName] || null
-    const stored = getStats(matchdayKey)
-    return stored[playerName] || null
+  const liveStatKeys = Object.keys(localStorage)
+    .filter(k => k.startsWith('wc_stats_'))
+    .map(k => k.replace('wc_stats_', ''))
+    .filter(k => !k.startsWith('fixture_'))
+
+  function playerTotalResult(p) {
+    if (liveStatKeys.length > 0) {
+      const pts = liveStatKeys.reduce((s, k) => {
+        const st = getStats(k)
+        return s + calcPlayerPts(p, st[p.name] || null, rules).pts
+      }, 0)
+      return { pts, breakdown: [] }
+    }
+    return calcPlayerPts(p, usingMock ? (MOCK_STATS[p.name] || null) : null, rules)
   }
 
   function calcTeamTotal(team) {
-    // Sum across all available matchdays
-    const keys = Object.keys(localStorage)
-      .filter(k => k.startsWith('wc_stats_'))
-      .map(k => k.replace('wc_stats_', ''))
-      .filter(k => !k.startsWith('fixture_'))
-    if (keys.length === 0) {
-      // Use mock
-      return team.squad.reduce((sum, p) => sum + calcPlayerPts(p, MOCK_STATS[p.name] || null, rules).pts, 0)
-    }
-    return team.squad.reduce((sum, p) => {
-      return sum + keys.reduce((s, k) => s + calcPlayerPts(p, getPlayerStats(p.name, k), rules).pts, 0)
-    }, 0)
-  }
-
-  function calcTeamMatchday(team, key) {
-    return team.squad.reduce((sum, p) => sum + calcPlayerPts(p, getPlayerStats(p.name, key), rules).pts, 0)
+    return team.squad.reduce((sum, p) => sum + playerTotalResult(p).pts, 0)
   }
 
   const ranked = [...teams].map(t => ({ ...t, total: calcTeamTotal(t) })).sort((a, b) => b.total - a.total)
@@ -293,7 +288,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
                       <div className={styles.squadSectionLabel}>{s}</div>
                       <div className={styles.squadPlayers}>
                         {bySlot[s].map(p => {
-                          const { pts, breakdown } = calcPlayerPts(p, usingMock ? MOCK_STATS[p.name] || null : null, rules)
+                          const { pts, breakdown } = playerTotalResult(p)
                           return (
                             <div key={p.name} className={styles.playerChip} title={breakdown.map(b => `${b.label}: ${b.pts > 0 ? '+' : ''}${b.pts}`).join(' | ')}>
                               {p.flag} {p.name.split(' ').slice(-1)[0]}
