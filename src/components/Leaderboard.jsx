@@ -206,6 +206,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   const medals = ['🥇', '🥈', '🥉']
 
   return (
+    <>
     <div className={styles.wrap}>
       {usingMock && (
         <div className={styles.mockBanner}>
@@ -334,5 +335,6 @@ export default function Leaderboard({ onEditTeam, setTab }) {
         </div>
       </div>
     )}
+    </>
   )
 }
