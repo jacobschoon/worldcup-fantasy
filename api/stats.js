@@ -1,4 +1,9 @@
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+})
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -12,22 +17,22 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const stats = (await kv.get('wc_stats')) || {}
+      const stats = (await redis.get('wc_stats')) || {}
       return res.status(200).json(stats)
     } catch {
-      return res.status(503).json({ error: 'KV unavailable' })
+      return res.status(503).json({ error: 'Redis unavailable' })
     }
   }
 
   if (req.method === 'POST') {
     try {
       const { round, stats } = req.body
-      const all = (await kv.get('wc_stats')) || {}
+      const all = (await redis.get('wc_stats')) || {}
       all[round] = { ...(all[round] || {}), ...stats }
-      await kv.set('wc_stats', all)
+      await redis.set('wc_stats', all)
       return res.status(200).json({ ok: true })
     } catch {
-      return res.status(503).json({ error: 'KV unavailable' })
+      return res.status(503).json({ error: 'Redis unavailable' })
     }
   }
 

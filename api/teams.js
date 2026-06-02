@@ -1,4 +1,9 @@
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url: process.env.KV_REST_API_URL,
+  token: process.env.KV_REST_API_TOKEN,
+})
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -18,17 +23,17 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const teams = (await kv.get('wc_teams')) || []
+      const teams = (await redis.get('wc_teams')) || []
       return res.status(200).json(teams)
     } catch {
-      return res.status(503).json({ error: 'KV unavailable' })
+      return res.status(503).json({ error: 'Redis unavailable' })
     }
   }
 
   if (req.method === 'POST') {
     try {
       const { pin: rawPin, ...team } = req.body
-      const teams = (await kv.get('wc_teams')) || []
+      const teams = (await redis.get('wc_teams')) || []
       const existing = teams.find(t => t.manager === team.manager)
       if (existing) {
         if (String(rawPin) !== '2026' && existing.pinHash && existing.pinHash !== hashPin(String(rawPin || ''))) {
@@ -37,10 +42,10 @@ export default async function handler(req, res) {
       }
       const idx = teams.findIndex(t => t.manager === team.manager)
       if (idx > -1) teams[idx] = team; else teams.push(team)
-      await kv.set('wc_teams', teams)
+      await redis.set('wc_teams', teams)
       return res.status(200).json({ ok: true })
     } catch {
-      return res.status(503).json({ error: 'KV unavailable' })
+      return res.status(503).json({ error: 'Redis unavailable' })
     }
   }
 

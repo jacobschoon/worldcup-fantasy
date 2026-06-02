@@ -32,6 +32,7 @@ export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
   const [activeSlot, setActiveSlot]   = useState(null)
   const [search, setSearch]           = useState('')
   const [saved, setSaved]             = useState(false)
+  const [saveError, setSaveError]     = useState('')
   const [isEditing, setIsEditing]     = useState(false)
 
   // Load modal state
@@ -123,12 +124,20 @@ export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
     if (idx > -1) existing[idx] = team; else existing.push(team)
     localStorage.setItem('wc_teams', JSON.stringify(existing))
     try {
-      await fetch('/api/teams', {
+      const res = await fetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...team, pin }),
       })
-    } catch { /* localStorage already saved as fallback */ }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setSaveError(err.error || 'Could not sync to server — saved locally only')
+      } else {
+        setSaveError('')
+      }
+    } catch {
+      setSaveError('Could not reach server — saved locally only')
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
     if (onSave) onSave()
@@ -262,6 +271,7 @@ export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
           </span>
         )}
         {saved && <span className={styles.savedMsg}>✓ Team saved!</span>}
+        {saveError && <span className={styles.ctaNote} style={{ color: '#c00' }}>{saveError}</span>}
       </div>
 
       {/* Player picker modal */}
