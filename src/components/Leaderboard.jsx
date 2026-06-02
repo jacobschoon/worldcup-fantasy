@@ -106,13 +106,41 @@ function getStats(matchdayKey) {
   try { return JSON.parse(localStorage.getItem(`wc_stats_${matchdayKey}`) || '{}') } catch { return {} }
 }
 
-export default function Leaderboard() {
+function hashPin(pin) {
+  let h = 0
+  for (let i = 0; i < pin.length; i++) { h = (Math.imul(31, h) + pin.charCodeAt(i)) | 0 }
+  return h.toString()
+}
+
+export default function Leaderboard({ onEditTeam, setTab }) {
   const [view, setView]         = useState('total')
   const [expanded, setExpanded] = useState(null)
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading]   = useState(false)
   const [apiStatus, setApiStatus] = useState('')
   const [, forceUpdate]         = useState(0)
+
+  const [editTarget, setEditTarget] = useState(null)
+  const [editPin, setEditPin]       = useState('')
+  const [editError, setEditError]   = useState('')
+
+  function openEditModal(e, team) {
+    e.stopPropagation()
+    setEditTarget(team)
+    setEditPin('')
+    setEditError('')
+  }
+
+  function confirmEdit() {
+    if (editPin !== '2026' && editTarget.pinHash && editTarget.pinHash !== hashPin(editPin)) {
+      setEditError('Incorrect PIN')
+      setEditPin('')
+      return
+    }
+    setEditTarget(null)
+    onEditTeam(editTarget.manager)
+    setTab('squad')
+  }
 
   const hasKey = !!localStorage.getItem('wc_api_key')
 
@@ -247,7 +275,15 @@ export default function Leaderboard() {
                   <span className={styles.managerDisplay}>({t.manager}) · {t.formation}</span>
                 </div>
                 <span className={styles.ptsDisplay}>{t.total}</span>
-                <span className={styles.chevron}>{expanded === i ? '▲' : '▼'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  {onEditTeam && setTab && (
+                    <button
+                      style={{ fontSize:12, padding:'2px 8px', cursor:'pointer' }}
+                      onClick={e => openEditModal(e, t)}
+                    >Edit</button>
+                  )}
+                  <span className={styles.chevron}>{expanded === i ? '▲' : '▼'}</span>
+                </span>
               </div>
               {expanded === i && (
                 <div className={styles.squadExpand}>
@@ -274,5 +310,29 @@ export default function Leaderboard() {
         })}
       </div>
     </div>
+
+    {editTarget && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }} onClick={() => setEditTarget(null)}>
+        <div style={{ background:'white', borderRadius:12, padding:24, width:320, maxWidth:'90vw' }} onClick={e => e.stopPropagation()}>
+          <h3 style={{ margin:'0 0 6px' }}>Edit {editTarget.teamName}</h3>
+          <p style={{ margin:'0 0 16px', color:'#666', fontSize:14 }}>Enter {editTarget.manager}'s team PIN</p>
+          <input
+            autoFocus
+            type="password"
+            maxLength={4}
+            placeholder="4-digit PIN"
+            value={editPin}
+            onChange={e => { setEditPin(e.target.value.replace(/\D/g, '')); setEditError('') }}
+            onKeyDown={e => e.key === 'Enter' && confirmEdit()}
+            style={{ width:'100%', boxSizing:'border-box', textAlign:'center', fontSize:20, letterSpacing:'0.3em', marginBottom:8, padding:'8px 12px' }}
+          />
+          {editError && <div style={{ color:'red', fontSize:13, marginBottom:8 }}>{editError}</div>}
+          <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:8 }}>
+            <button onClick={() => setEditTarget(null)}>Cancel</button>
+            <button className="primary" onClick={confirmEdit}>Edit team</button>
+          </div>
+        </div>
+      </div>
+    )}
   )
 }

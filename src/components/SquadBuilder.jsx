@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PLAYERS, FORMATIONS, eligibleForSlot, buildSlotDefs } from '../data.js'
 import styles from './SquadBuilder.module.css'
 
@@ -22,7 +22,7 @@ function hashPin(pin) {
   return h.toString()
 }
 
-export default function SquadBuilder({ onSave }) {
+export default function SquadBuilder({ onSave, editManager, onClearEdit }) {
   const [teamName, setTeamName]       = useState('')
   const [managerName, setManagerName] = useState('')
   const [pin, setPin]                 = useState('')
@@ -38,6 +38,25 @@ export default function SquadBuilder({ onSave }) {
   const [showLoadModal, setShowLoadModal] = useState(false)
   const [loadPin, setLoadPin]             = useState('')
   const [loadError, setLoadError]         = useState('')
+
+  useEffect(() => {
+    if (!editManager) return
+    const teams = JSON.parse(localStorage.getItem('wc_teams') || '[]')
+    const team = teams.find(t => t.manager === editManager)
+    if (!team) { if (onClearEdit) onClearEdit(); return }
+    const f = FORMATIONS.find(f => f.label === team.formation)
+    if (!f) { if (onClearEdit) onClearEdit(); return }
+    const defs = buildSlotDefs(f)
+    setFormation(f)
+    setSlotDefs(defs)
+    setTeamName(team.teamName || '')
+    setManagerName(team.manager)
+    setPin('')
+    const rebuilt = team.squad.map(p => p ? PLAYERS.find(pl => pl.name === p.name) || null : null)
+    setSquad(rebuilt)
+    setIsEditing(true)
+    if (onClearEdit) onClearEdit()
+  }, [editManager])
 
   function openLoadModal() {
     if (!managerName.trim()) return

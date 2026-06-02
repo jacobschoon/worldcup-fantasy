@@ -13,7 +13,8 @@ const TABS = [
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('board')
+  const [tab, setTab]               = useState('board')
+  const [editManager, setEditManager] = useState(null)
 
   return (
     <div className={styles.app}>
@@ -49,7 +50,7 @@ export default function App() {
                 <h1>Build your squad</h1>
                 <p>Name your team, pick a formation, fill your 11</p>
               </div>
-              <SquadBuilder onSave={() => setTab('board')} />
+              <SquadBuilder onSave={() => setTab('board')} editManager={editManager} onClearEdit={() => setEditManager(null)} />
             </>
           )}
           {tab === 'rules' && (
@@ -67,7 +68,7 @@ export default function App() {
                 <h1>Leaderboard</h1>
                 <p>World Cup 2026 · Kicks off June 11</p>
               </div>
-              <Leaderboard />
+              <Leaderboard setTab={setTab} onEditTeam={setEditManager} />
             </>
           )}
           {tab === 'settings' && (
