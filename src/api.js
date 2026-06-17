@@ -1,19 +1,6 @@
-// API-Football v3 via RapidAPI
-// Key is stored in localStorage by the commissioner
+// API-Football v3 — requests are proxied through our own serverless functions
+// so the API key never touches the browser. See api/fixtures.js and api/matchstats.js.
 // World Cup 2026: league=1, season=2026
-
-const BASE_URL = 'https://v3.football.api-sports.io'
-
-function getKey() {
-  return localStorage.getItem('wc_api_key') || ''
-}
-
-function headers() {
-  return {
-    'x-rapidapi-host': 'v3.football.api-sports.io',
-    'x-rapidapi-key': getKey(),
-  }
-}
 
 // Cache results in localStorage to avoid burning requests
 function cacheKey(url) {
@@ -35,26 +22,25 @@ function toCache(url, data) {
   } catch { /* ignore */ }
 }
 
-async function apiFetch(path) {
-  const url = `${BASE_URL}${path}`
-  const cached = fromCache(url)
+async function internalFetch(path) {
+  const cached = fromCache(path)
   if (cached) return cached
-  const res = await fetch(url, { headers: headers() })
+  const res = await fetch(path)
   if (!res.ok) throw new Error(`API error ${res.status}`)
   const json = await res.json()
-  toCache(url, json)
+  toCache(path, json)
   return json
 }
 
 // Get all fixtures for WC 2026
 export async function fetchFixtures() {
-  const data = await apiFetch('/fixtures?league=1&season=2026')
+  const data = await internalFetch('/api/fixtures')
   return data.response || []
 }
 
 // Get player stats for a specific fixture
 export async function fetchFixtureStats(fixtureId) {
-  const data = await apiFetch(`/fixtures/players?fixture=${fixtureId}`)
+  const data = await internalFetch(`/api/matchstats?fixture=${fixtureId}`)
   return data.response || []
 }
 
