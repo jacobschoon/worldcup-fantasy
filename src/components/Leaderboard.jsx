@@ -114,7 +114,6 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading]   = useState(false)
   const [apiStatus, setApiStatus] = useState('')
-  const [, forceUpdate]         = useState(0)
 
   const [editTarget, setEditTarget] = useState(null)
   const [editPin, setEditPin]       = useState('')
@@ -167,36 +166,67 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   async function refresh() {
     setLoading(true); setApiStatus('')
     try {
-      const fixtures = await fetchFixtures()
-      setFixtures(fixtures)
-      const finished = fixtures.filter(f => f.fixture.status.short === 'FT')
+      const allFixtures = await fetchFixtures()
+      setFixtures(allFixtures)
+      const finished = allFixtures.filter(f => f.fixture.status.short === 'FT')
+      console.log(`[refresh] ${finished.length} finished fixtures out of ${allFixtures.length} total`)
+
+      // Accumulate stats in-memory keyed by round
+      const roundStats = {}
       for (const f of finished) {
-        const cacheKey = `wc_stats_fixture_${f.fixture.id}`
-        if (localStorage.getItem(cacheKey)) continue
-        const statsRes = await fetchFixtureStats(f.fixture.id)
-        const parsed = parseMatchStats(statsRes, f.goals.home, f.goals.away)
-        // Merge into matchday store
+        const matchData = await fetchFixtureStats(f.fixture.id)
+        const parsed = parseMatchStats(matchData, f.goals.home, f.goals.away)
         const round = f.league.round || 'Unknown'
-        const existing = getStats(round)
-        Object.assign(existing, parsed)
-        localStorage.setItem(`wc_stats_${round}`, JSON.stringify(existing))
-        localStorage.setItem(cacheKey, '1')
-        try {
-          await fetch('/api/stats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ round, stats: existing }),
-          })
-        } catch { /* localStorage fallback already saved */ }
+        if (!roundStats[round]) roundStats[round] = {}
+        Object.assign(roundStats[round], parsed)
+        console.log(`[refresh] ${f.teams.home.name} v ${f.teams.away.name} (round: ${round}): ${Object.keys(parsed).length} players parsed`)
       }
+
+      console.log('[refresh] rounds with stats:', Object.keys(roundStats))
+
+      // Update state directly — no Redis round-trip needed for the UI to update
+      setApiStats(roundStats)
+
+      // Save to localStorage for offline access
+      Object.entries(roundStats).forEach(([round, stats]) => {
+        localStorage.setItem(`wc_stats_${round}`, JSON.stringify(stats))
+      })
+
+      // Post to Redis for cross-device sharing (fire and forget — don't block the UI)
+      Object.entries(roundStats).forEach(([round, stats]) => {
+        fetch('/api/stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ round, stats }),
+        }).catch(() => {})
+      })
+
+      // Refresh team list in case new teams were added
       try {
-        const [tr, sr] = await Promise.all([fetch('/api/teams'), fetch('/api/stats')])
+        const tr = await fetch('/api/teams')
         if (tr.ok) { const d = await tr.json(); if (Array.isArray(d)) setApiTeams(d) }
-        if (sr.ok) { const d = await sr.json(); if (d && !d.error) setApiStats(d) }
       } catch { /* ignore */ }
+
+      // Log team totals using the freshly computed stats
+      const currentRules = getRules()
+      const currentTeams = (apiTeams && apiTeams.length > 0)
+        ? apiTeams
+        : (() => { try { return JSON.parse(localStorage.getItem('wc_teams') || '[]') } catch { return [] } })()
+      const teamsForLog = currentTeams.length ? currentTeams : MOCK_TEAMS
+      const roundKeys = Object.keys(roundStats)
+      console.log('[refresh] team totals:')
+      teamsForLog.forEach(team => {
+        const total = team.squad.reduce((sum, p) => {
+          return sum + roundKeys.reduce((s, k) => {
+            return s + calcPlayerPts(p, lookupPlayerStats(roundStats[k] || {}, p.name), currentRules).pts
+          }, 0)
+        }, 0)
+        console.log(`  ${team.manager} (${team.teamName || '—'}): ${total} pts`)
+      })
+
       setApiStatus('Updated just now')
-      forceUpdate(n => n + 1)
     } catch (e) {
+      console.error('[refresh] error:', e)
       setApiStatus('Error fetching data — check that FOOTBALL_API_KEY is set in Vercel')
     }
     setLoading(false)

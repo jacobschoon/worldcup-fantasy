@@ -76,13 +76,27 @@ function normalizeMatch(m) {
 
 // Get all fixtures for WC 2026
 export async function fetchFixtures() {
+  // Bust cache if it contains old API-Football format ({ response: [...] } instead of { matches: [...] })
+  const cached = fromCache('/api/fixtures')
+  if (cached !== null && !cached.matches) {
+    console.log('[fetchFixtures] clearing stale API-Football cache')
+    localStorage.removeItem(cacheKey('/api/fixtures'))
+  }
   const data = await internalFetch('/api/fixtures')
+  console.log('[fetchFixtures] raw response keys:', Object.keys(data))
   return (data.matches || []).map(normalizeMatch)
 }
 
 // Get match data (goals, lineups, bookings) for a specific fixture
 export async function fetchFixtureStats(fixtureId) {
-  return internalFetch(`/api/matchstats?fixture=${fixtureId}`)
+  const path = `/api/matchstats?fixture=${fixtureId}`
+  // Bust cache if it contains old API-Football format (an array of team data objects)
+  const cached = fromCache(path)
+  if (Array.isArray(cached) || (cached !== null && cached.response !== undefined)) {
+    console.log(`[fetchFixtureStats] clearing stale API-Football cache for fixture ${fixtureId}`)
+    localStorage.removeItem(cacheKey(path))
+  }
+  return internalFetch(path)
 }
 
 // Parse football-data.org match data into our scoring format.
