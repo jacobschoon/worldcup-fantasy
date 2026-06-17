@@ -148,9 +148,18 @@ export function parseEspnMatchStats(summaryData, homeScore, awayScore) {
   ;(summaryData?.rosters || []).forEach(roster => {
     const isHome = roster.homeAway === 'home'
     const bucket = isHome ? homePlayerNames : awayPlayerNames
+    const teamName = roster.team?.displayName || (isHome ? 'home' : 'away')
+
+    // Log every player name so name mismatches are visible in the console
+    const playedNames = (roster.roster || [])
+      .filter(e => e.starter || e.subbedIn)
+      .map(e => e.athlete?.displayName?.trim())
+      .filter(Boolean)
+    console.log(`[parseEspnMatchStats] ${teamName} roster (${playedNames.length}):`, playedNames.join(', '))
 
     ;(roster.roster || []).forEach(entry => {
-      const name      = entry.athlete?.displayName
+      // Trim to handle ESPN's trailing-space names like 'Pedri ', 'Rodri ', 'Gavi '
+      const name      = entry.athlete?.displayName?.trim()
       const athleteId = entry.athlete?.id
       if (!name) return
 
@@ -190,18 +199,86 @@ export function parseEspnMatchStats(summaryData, homeScore, awayScore) {
   return result
 }
 
+// Strip diacritics, lowercase, trim: 'Vinícius Júnior' → 'vinicius junior'
+function normName(s) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
+// Tokens that carry no identity weight (suffixes, initials)
+const NAME_SUFFIXES = new Set(['jr.', 'jr', 'sr.', 'sr', 'ii', 'iii', 'iv'])
+const isInitial = (t) => /^[a-z]\.?$/.test(t)  // single letter with optional period
+
 // Look up a squad player's stats from a parsed stats object.
-// Tries exact name match first, then falls back to matching by last name only.
+// Falls back through six strategies to bridge ESPN name variants:
+//   accent differences, Jr./Júnior suffixes, initials ("K. Mbappé"), abbreviated
+//   first names ("Vini" → "Vinicius"), and single-name players.
 export function lookupPlayerStats(statsObj, playerName) {
+  // 1. Exact match
   if (statsObj[playerName]) return statsObj[playerName]
-  const lastName = playerName.split(' ').slice(-1)[0].toLowerCase()
-  const key = Object.keys(statsObj).find(
-    k => k.split(' ').slice(-1)[0].toLowerCase() === lastName
-  )
-  if (key) {
-    console.log(`[lookupPlayerStats] fuzzy match: "${playerName}" → "${key}"`)
+
+  const normTarget = normName(playerName)
+  const keys = Object.keys(statsObj)
+
+  // 2. Normalized exact match — 'Theo Hernandez' ↔ 'Theo Hernández', 'Ruben Dias' ↔ 'Rúben Dias'
+  const normExact = keys.find(k => normName(k) === normTarget)
+  if (normExact) {
+    console.log(`[lookupPlayerStats] accent match: "${playerName}" → "${normExact}"`)
+    return statsObj[normExact]
   }
-  return key ? statsObj[key] : null
+
+  const targetTokens = normTarget.split(' ').filter(Boolean)
+
+  // 3. Last-name match (normalized), skipping suffix tokens like Jr./Júnior
+  const meaningfulLast = [...targetTokens].reverse().find(t => !NAME_SUFFIXES.has(t) && !isInitial(t) && t.length > 2)
+  if (meaningfulLast) {
+    const lastMatch = keys.find(k => {
+      const kt = normName(k).split(' ').filter(t => !NAME_SUFFIXES.has(t) && !isInitial(t))
+      return kt.length > 0 && kt[kt.length - 1] === meaningfulLast
+    })
+    if (lastMatch) {
+      console.log(`[lookupPlayerStats] last-name match: "${playerName}" → "${lastMatch}"`)
+      return statsObj[lastMatch]
+    }
+  }
+
+  // 4. Exact token match (≥5 chars, must be unique in statsObj) —
+  //    'Vinicius Jr.' ↔ 'Vinícius Júnior' via shared token 'vinicius'
+  const longTokens = targetTokens.filter(t => t.length >= 5 && !NAME_SUFFIXES.has(t) && !isInitial(t))
+  for (const token of longTokens) {
+    const matches = keys.filter(k => normName(k).split(' ').includes(token))
+    if (matches.length === 1) {
+      console.log(`[lookupPlayerStats] token match "${token}": "${playerName}" → "${matches[0]}"`)
+      return statsObj[matches[0]]
+    }
+  }
+
+  // 5. Prefix match (≥4 chars, unique) — ESPN abbreviated first names like 'Vini' → 'Vinicius'
+  const prefixTokens = targetTokens.filter(t => t.length >= 4 && !NAME_SUFFIXES.has(t) && !isInitial(t))
+  for (const token of prefixTokens) {
+    const matches = keys.filter(k =>
+      normName(k).split(' ').some(kt => kt.startsWith(token) || token.startsWith(kt))
+    )
+    if (matches.length === 1) {
+      console.log(`[lookupPlayerStats] prefix match "${token}": "${playerName}" → "${matches[0]}"`)
+      return statsObj[matches[0]]
+    }
+  }
+
+  // 6. Initial-stripping match — 'K. Mbappé' style: drop initials and match on remaining tokens
+  const substantive = targetTokens.filter(t => !isInitial(t) && !NAME_SUFFIXES.has(t))
+  if (substantive.length > 0 && substantive.length < targetTokens.length) {
+    const initMatch = keys.find(k => {
+      const kt = normName(k).split(' ').filter(t => !isInitial(t) && !NAME_SUFFIXES.has(t))
+      return substantive.every(t => kt.includes(t))
+    })
+    if (initMatch) {
+      console.log(`[lookupPlayerStats] initial-strip match: "${playerName}" → "${initMatch}"`)
+      return statsObj[initMatch]
+    }
+  }
+
+  console.log(`[lookupPlayerStats] no match for: "${playerName}"`)
+  return null
 }
 
 // Group normalised fixtures by matchday round string
