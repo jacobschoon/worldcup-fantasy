@@ -1,6 +1,6 @@
-// API-Football v3 — requests are proxied through our own serverless functions
+// football-data.org v4 — requests are proxied through our own serverless functions
 // so the API key never touches the browser. See api/fixtures.js and api/matchstats.js.
-// World Cup 2026: league=1, season=2026
+// World Cup 2026: competition code WC
 
 // Cache results in localStorage to avoid burning requests
 function cacheKey(url) {
@@ -32,69 +32,129 @@ async function internalFetch(path) {
   return json
 }
 
+function normalizeStatus(status) {
+  const map = {
+    FINISHED: 'FT', IN_PLAY: 'LIVE', PAUSED: 'HT',
+    EXTRA_TIME: 'ET', PENALTY_SHOOTOUT: 'P',
+    SCHEDULED: 'NS', TIMED: 'NS',
+    POSTPONED: 'PST', SUSPENDED: 'SUSP', CANCELLED: 'CANC',
+  }
+  return map[status] || status
+}
+
+function formatRound(m) {
+  if (m.stage === 'GROUP_STAGE') return `Group Stage - Matchday ${m.matchday}`
+  const stages = {
+    LAST_16: 'Round of 16',
+    QUARTER_FINALS: 'Quarter-finals',
+    SEMI_FINALS: 'Semi-finals',
+    THIRD_PLACE: 'Third-place play-off',
+    FINAL: 'Final',
+  }
+  return stages[m.stage] || m.stage || 'Unknown'
+}
+
+// Normalize a football-data.org match into the shape the rest of the app expects
+function normalizeMatch(m) {
+  return {
+    fixture: {
+      id: m.id,
+      date: m.utcDate,
+      status: { short: normalizeStatus(m.status) },
+    },
+    league: { round: formatRound(m) },
+    teams: {
+      home: { name: m.homeTeam?.name || '' },
+      away: { name: m.awayTeam?.name || '' },
+    },
+    goals: {
+      home: m.score?.fullTime?.home ?? null,
+      away: m.score?.fullTime?.away ?? null,
+    },
+  }
+}
+
 // Get all fixtures for WC 2026
 export async function fetchFixtures() {
   const data = await internalFetch('/api/fixtures')
-  return data.response || []
+  return (data.matches || []).map(normalizeMatch)
 }
 
-// Get player stats for a specific fixture
+// Get match data (goals, lineups, bookings) for a specific fixture
 export async function fetchFixtureStats(fixtureId) {
-  const data = await internalFetch(`/api/matchstats?fixture=${fixtureId}`)
-  return data.response || []
+  return internalFetch(`/api/matchstats?fixture=${fixtureId}`)
 }
 
-// Parse API-Football player stats into our scoring format
+// Parse football-data.org match data into our scoring format.
+// matchData: the full match object from GET /matches/{id}
 // Returns: { [playerName]: { goals, assists, mins, yellow, red, saves, pen_saved, pen_missed, own_goal, clean_team } }
-export function parseMatchStats(fixtureStatsResponse, homeScore, awayScore) {
+export function parseMatchStats(matchData, homeScore, awayScore) {
   const result = {}
+  const homeId = matchData.homeTeam?.id
+  const homePlayerNames = new Set()
+  const awayPlayerNames = new Set()
 
-  fixtureStatsResponse.forEach(teamData => {
-    const isHome = teamData.team.id === teamData.team.id // always true, used for clean sheet
-    const teamGoals = teamData.team.id // we'll resolve clean sheet from scores passed in
+  function ensurePlayer(name) {
+    if (!result[name]) {
+      result[name] = { goals: 0, assists: 0, mins: 0, yellow: 0, red: 0, saves: 0, pen_saved: 0, pen_missed: 0, own_goal: 0, clean_team: false }
+    }
+  }
 
-    teamData.players.forEach(({ player, statistics }) => {
-      const s = statistics[0]
-      if (!s) return
-
-      const mins = s.games?.minutes || 0
-      if (mins === 0) return // didn't play
-
-      result[player.name] = {
-        goals:      s.goals?.total        || 0,
-        assists:    s.goals?.assists       || 0,
-        mins,
-        yellow:     s.cards?.yellow       || 0,
-        red:        (s.cards?.red || 0) + (s.cards?.yellowred || 0),
-        saves:      s.goals?.saves        || 0,
-        pen_saved:  s.penalty?.saved      || 0,
-        pen_missed: s.penalty?.missed     || 0,
-        own_goal:   s.goals?.owngoals     || 0,
-        // clean_team resolved per team below
-        clean_team: false,
-      }
+  // Starters from lineups — set mins to 90 when lineup data is present
+  if (Array.isArray(matchData.lineups)) {
+    matchData.lineups.forEach(lineup => {
+      const isHome = lineup.team?.id === homeId
+      const bucket = isHome ? homePlayerNames : awayPlayerNames
+      ;(lineup.startXI || []).forEach(({ player }) => {
+        if (!player?.name) return
+        ensurePlayer(player.name)
+        result[player.name].mins = 90
+        bucket.add(player.name)
+      })
     })
+  }
+
+  // Goals and assists
+  ;(matchData.goals || []).forEach(({ type, team, scorer, assist }) => {
+    if (scorer?.name) {
+      ensurePlayer(scorer.name)
+      const isHome = team?.id === homeId
+      ;(isHome ? homePlayerNames : awayPlayerNames).add(scorer.name)
+      if (!result[scorer.name].mins) result[scorer.name].mins = 90
+      if (type === 'OWN_GOAL') {
+        result[scorer.name].own_goal += 1
+      } else {
+        result[scorer.name].goals += 1
+      }
+    }
+    if (assist?.name) {
+      ensurePlayer(assist.name)
+      result[assist.name].assists += 1
+      if (!result[assist.name].mins) result[assist.name].mins = 90
+    }
   })
 
-  // Resolve clean sheets: if a team scored 0, their players get clean_team=true
-  fixtureStatsResponse.forEach(teamData => {
-    // Determine if this team's opponents scored 0
-    // homeScore / awayScore passed from fixture data
-    const isHome = fixtureStatsResponse.indexOf(teamData) === 0
-    const conceded = isHome ? awayScore : homeScore
-    const cleanSheet = conceded === 0
-
-    teamData.players.forEach(({ player }) => {
-      if (result[player.name]) {
-        result[player.name].clean_team = cleanSheet
-      }
-    })
+  // Yellow and red cards
+  ;(matchData.bookings || []).forEach(({ player, card, team }) => {
+    if (!player?.name) return
+    ensurePlayer(player.name)
+    const isHome = team?.id === homeId
+    ;(isHome ? homePlayerNames : awayPlayerNames).add(player.name)
+    if (!result[player.name].mins) result[player.name].mins = 90
+    if (card === 'YELLOW') result[player.name].yellow += 1
+    else if (card === 'RED' || card === 'YELLOW_RED') result[player.name].red += 1
   })
+
+  // Clean sheets — team conceded 0 goals
+  const homeClean = awayScore === 0
+  const awayClean = homeScore === 0
+  homePlayerNames.forEach(name => { if (result[name]) result[name].clean_team = homeClean })
+  awayPlayerNames.forEach(name => { if (result[name]) result[name].clean_team = awayClean })
 
   return result
 }
 
-// Get status of all WC fixtures, grouped by matchday
+// Group normalised fixtures by matchday round string
 export function groupFixturesByMatchday(fixtures) {
   const groups = {}
   fixtures.forEach(f => {
@@ -108,7 +168,7 @@ export function groupFixturesByMatchday(fixtures) {
       awayflag: '',
       homeScore: f.goals.home,
       awayScore: f.goals.away,
-      status: f.fixture.status.short, // FT, NS, 1H, 2H, HT etc
+      status: f.fixture.status.short,
       date: f.fixture.date,
       round,
     })

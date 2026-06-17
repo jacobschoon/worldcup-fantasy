@@ -164,10 +164,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
     setTab('squad')
   }
 
-  const hasKey = !!localStorage.getItem('wc_api_key')
-
   async function refresh() {
-    if (!hasKey) { setApiStatus('No API key — add it in Settings'); return }
     setLoading(true); setApiStatus('')
     try {
       const fixtures = await fetchFixtures()
@@ -200,7 +197,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
       setApiStatus('Updated just now')
       forceUpdate(n => n + 1)
     } catch (e) {
-      setApiStatus('Error fetching data — check your API key in Settings')
+      setApiStatus('Error fetching data — check that FOOTBALL_API_KEY is set in Vercel')
     }
     setLoading(false)
   }

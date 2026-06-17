@@ -17,13 +17,8 @@ export default async function handler(req, res) {
 
   try {
     const upstream = await fetch(
-      `https://v3.football.api-sports.io/fixtures/players?fixture=${fixture}`,
-      {
-        headers: {
-          'x-rapidapi-key': apiKey,
-          'x-rapidapi-host': 'v3.football.api-sports.io',
-        },
-      }
+      `https://api.football-data.org/v4/matches/${fixture}`,
+      { headers: { 'X-Auth-Token': apiKey } }
     )
     const json = await upstream.json()
     return res.status(upstream.status).json(json)

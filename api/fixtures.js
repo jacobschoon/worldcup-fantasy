@@ -14,13 +14,8 @@ export default async function handler(req, res) {
 
   try {
     const upstream = await fetch(
-      'https://v3.football.api-sports.io/fixtures?league=1&season=2026',
-      {
-        headers: {
-          'x-rapidapi-key': apiKey,
-          'x-rapidapi-host': 'v3.football.api-sports.io',
-        },
-      }
+      'https://api.football-data.org/v4/competitions/WC/matches',
+      { headers: { 'X-Auth-Token': apiKey } }
     )
     const json = await upstream.json()
     return res.status(upstream.status).json(json)
