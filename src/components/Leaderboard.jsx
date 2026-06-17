@@ -121,6 +121,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   const [apiTeams, setApiTeams]     = useState(null)
   const [apiStats, setApiStats]     = useState({})
   const [teamsLoading, setTeamsLoading] = useState(true)
+  const [selectedPlayer, setSelectedPlayer] = useState(null)
 
   async function loadFromApi() {
     setTeamsLoading(true)
@@ -242,14 +243,58 @@ export default function Leaderboard({ onEditTeam, setTab }) {
         .map(k => k.replace('wc_stats_', ''))
 
   function playerTotalResult(p) {
-    if (liveStatKeys.length > 0) {
-      const pts = liveStatKeys.reduce((s, k) => {
-        const st = getStats(k)
-        return s + calcPlayerPts(p, lookupPlayerStats(st, p.name), rules).pts
-      }, 0)
-      return { pts, breakdown: [] }
+    if (liveStatKeys.length === 0) {
+      return calcPlayerPts(p, usingMock ? (MOCK_STATS[p.name] || null) : null, rules)
     }
-    return calcPlayerPts(p, usingMock ? (MOCK_STATS[p.name] || null) : null, rules)
+
+    // Accumulate breakdown items across all rounds, merging by semantic category
+    const cats = new Map()
+    let totalPts = 0
+    liveStatKeys.forEach(k => {
+      const st = getStats(k)
+      const { pts, breakdown } = calcPlayerPts(p, lookupPlayerStats(st, p.name), rules)
+      totalPts += pts
+      breakdown.forEach(({ label, pts: bPts }) => {
+        const cat = /min/i.test(label) ? 'mins'
+          : /goal/i.test(label) && !/own/i.test(label) ? 'goals'
+          : /assist/i.test(label) ? 'assists'
+          : /clean/i.test(label) ? 'clean'
+          : /pen saved/i.test(label) ? 'pen_saved'
+          : /save/i.test(label) ? 'saves'
+          : /yellow/i.test(label) ? 'yellow'
+          : /red card/i.test(label) ? 'red'
+          : /own/i.test(label) ? 'own_goal'
+          : /pen miss/i.test(label) ? 'pen_missed'
+          : label
+        cats.set(cat, (cats.get(cat) || 0) + bPts)
+      })
+    })
+
+    const gPts = p.slot === 'GK' ? rules.goal_gk : p.slot === 'DEF' ? rules.goal_def : p.slot === 'MID' ? rules.goal_mid : rules.goal_fwd
+    const csPts = p.slot === 'GK' ? rules.clean_gk : p.slot === 'DEF' ? rules.clean_def : rules.clean_mid
+
+    function makeLabel(cat, pts) {
+      const n = (r) => r !== 0 ? Math.abs(Math.round(pts / r)) : 0
+      switch (cat) {
+        case 'mins':       return 'Minutes played'
+        case 'goals':      { const c = n(gPts);          return `${c} goal${c !== 1 ? 's' : ''}` }
+        case 'assists':    { const c = n(rules.assist);   return `${c} assist${c !== 1 ? 's' : ''}` }
+        case 'clean':      { const c = n(csPts);          return `${c} clean sheet${c !== 1 ? 's' : ''}` }
+        case 'saves':      return 'Saves'
+        case 'pen_saved':  { const c = n(rules.pen_save); return `${c} pen${c !== 1 ? 's' : ''} saved` }
+        case 'yellow':     { const c = n(rules.yellow);   return `${c} yellow card${c !== 1 ? 's' : ''}` }
+        case 'red':        { const c = n(rules.red);      return `${c} red card${c !== 1 ? 's' : ''}` }
+        case 'own_goal':   { const c = n(rules.own_goal); return `${c} own goal${c !== 1 ? 's' : ''}` }
+        case 'pen_missed': { const c = n(rules.pen_miss); return `${c} pen${c !== 1 ? 's' : ''} missed` }
+        default:           return cat
+      }
+    }
+
+    const breakdown = Array.from(cats.entries())
+      .filter(([, pts]) => pts !== 0)
+      .map(([cat, pts]) => ({ label: makeLabel(cat, pts), pts }))
+
+    return { pts: totalPts, breakdown }
   }
 
   function calcTeamTotal(team) {
@@ -354,7 +399,11 @@ export default function Leaderboard({ onEditTeam, setTab }) {
                         {bySlot[s].map(p => {
                           const { pts, breakdown } = playerTotalResult(p)
                           return (
-                            <div key={p.name} className={styles.playerChip} title={breakdown.map(b => `${b.label}: ${b.pts > 0 ? '+' : ''}${b.pts}`).join(' | ')}>
+                            <div
+                              key={p.name}
+                              className={styles.playerChip}
+                              onClick={e => { e.stopPropagation(); setSelectedPlayer({ name: p.name, flag: p.flag, slot: p.slot, pts, breakdown }) }}
+                            >
                               {p.flag} {p.name.split(' ').slice(-1)[0]}
                               <span className={`${styles.chipPts} ${pts < 0 ? styles.chipNeg : ''}`}>{pts > 0 ? '+' : ''}{pts}</span>
                             </div>
@@ -370,6 +419,44 @@ export default function Leaderboard({ onEditTeam, setTab }) {
         })}
       </div>
     </div>
+
+    {selectedPlayer && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }} onClick={() => setSelectedPlayer(null)}>
+        <div style={{ background:'var(--color-surface)', border:'1px solid var(--color-border)', borderRadius:12, padding:24, width:320, maxWidth:'90vw' }} onClick={e => e.stopPropagation()}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
+            <span style={{ fontSize:20 }}>{selectedPlayer.flag}</span>
+            <span style={{ fontWeight:600, fontSize:16, color:'var(--color-text)' }}>{selectedPlayer.name}</span>
+          </div>
+          <div style={{ fontSize:12, color:'var(--color-text-tertiary)', marginBottom:16 }}>{selectedPlayer.slot}</div>
+
+          {selectedPlayer.breakdown.length === 0 ? (
+            <div style={{ color:'var(--color-text-secondary)', fontSize:13, marginBottom:16 }}>No stats recorded yet</div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:7, marginBottom:16 }}>
+              {selectedPlayer.breakdown.map(({ label, pts }) => (
+                <div key={label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:13 }}>
+                  <span style={{ color:'var(--color-text-secondary)' }}>{label}</span>
+                  <span style={{ fontWeight:600, color: pts > 0 ? 'var(--color-green)' : pts < 0 ? 'var(--color-red)' : 'var(--color-text-tertiary)' }}>
+                    {pts > 0 ? '+' : ''}{pts}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid var(--color-border)', paddingTop:12, marginBottom:16 }}>
+            <span style={{ fontWeight:600, fontSize:13, color:'var(--color-text)' }}>Total</span>
+            <span style={{ fontWeight:700, fontSize:18, color: selectedPlayer.pts > 0 ? 'var(--color-green)' : selectedPlayer.pts < 0 ? 'var(--color-red)' : 'var(--color-text)' }}>
+              {selectedPlayer.pts > 0 ? '+' : ''}{selectedPlayer.pts} pts
+            </span>
+          </div>
+
+          <div style={{ display:'flex', justifyContent:'flex-end' }}>
+            <button onClick={() => setSelectedPlayer(null)}>Close</button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {editTarget && (
       <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:100 }} onClick={() => setEditTarget(null)}>

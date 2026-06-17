@@ -63,7 +63,8 @@
   display: flex; align-items: center; gap: 5px; font-size: 12px;
   padding: 4px 10px; border-radius: 999px;
   border: 1px solid var(--color-border-strong); background: var(--color-surface2);
-  color: var(--color-text); cursor: default;
+  color: var(--color-text); cursor: pointer; transition: background 0.1s;
 }
+.playerChip:hover { background: var(--color-surface); }
 .chipPts { font-weight: 600; margin-left: 2px; color: var(--color-green); }
 .chipNeg { color: var(--color-red); }
