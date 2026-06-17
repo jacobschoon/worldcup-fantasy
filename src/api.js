@@ -93,6 +93,7 @@ export async function fetchFixtures() {
 }
 
 export async function fetchEspnMatchStats(eventId) {
+  console.log('[fetchEspnMatchStats] fetching eventId:', eventId)
   return internalFetch(`/api/espnmatch?eventId=${eventId}`)
 }
 
@@ -100,8 +101,21 @@ export async function fetchEspnMatchStats(eventId) {
 // summaryData: full response from GET /api/espnmatch?eventId=ID
 // Returns: { [playerName]: { goals, assists, mins, yellow, red, saves, pen_saved, pen_missed, own_goal, clean_team } }
 export function parseEspnMatchStats(summaryData, homeScore, awayScore) {
-  console.log('[parseEspnMatchStats] homeScore:', homeScore, 'awayScore:', awayScore)
-  console.log('[parseEspnMatchStats] roster entries:', summaryData?.rosters?.length ?? 0)
+  const comp = summaryData?.header?.competitions?.[0]
+  const eventId = summaryData?.header?.id || comp?.id || '?'
+  console.log('[parseEspnMatchStats] eventId:', eventId, '| homeScore:', homeScore, 'awayScore:', awayScore)
+  console.log('[parseEspnMatchStats] rosters:', summaryData?.rosters?.length ?? 'missing',
+    '| keyEvents:', summaryData?.keyEvents?.length ?? 'missing')
+
+  // Log details array so we can verify goal/card event structure
+  const details = comp?.details || []
+  console.log('[parseEspnMatchStats] details count:', details.length)
+  if (details.length > 0) {
+    const first = details[0]
+    console.log('[parseEspnMatchStats] first detail keys:', Object.keys(first),
+      '| scoringPlay:', first.scoringPlay, '| ownGoal:', first.ownGoal,
+      '| scorer:', first.participants?.[0]?.athlete?.displayName)
+  }
 
   const result = {}
   const homePlayerNames = new Set()
@@ -118,26 +132,50 @@ export function parseEspnMatchStats(summaryData, homeScore, awayScore) {
     return entry ? Number(entry.value) : 0
   }
 
+  // Build substitution clock map from keyEvents.
+  // participants[0] = player coming ON, participants[1] = player going OFF.
+  const subOutMinute = {}  // athleteId -> minute when subbed off
+  const subInMinute  = {}  // athleteId -> minute when subbed on
+  ;(summaryData?.keyEvents || []).forEach(e => {
+    if (e.type?.type !== 'substitution') return
+    const mins  = Math.ceil((e.clock?.value || 0) / 60) || 1
+    const inId  = e.participants?.[0]?.athlete?.id
+    const outId = e.participants?.[1]?.athlete?.id
+    if (inId)  subInMinute[inId]  = mins
+    if (outId) subOutMinute[outId] = mins
+  })
+
   ;(summaryData?.rosters || []).forEach(roster => {
     const isHome = roster.homeAway === 'home'
     const bucket = isHome ? homePlayerNames : awayPlayerNames
 
     ;(roster.roster || []).forEach(entry => {
-      const name = entry.athlete?.displayName
+      const name      = entry.athlete?.displayName
+      const athleteId = entry.athlete?.id
       if (!name) return
-      if (!entry.played && !entry.starter) return
+
+      // Derive minutes from starter/sub flags + substitution clock data
+      let mins
+      if (entry.starter) {
+        mins = subOutMinute[athleteId] ?? 90
+      } else if (entry.subbedIn) {
+        mins = Math.max(1, 90 - (subInMinute[athleteId] ?? 90))
+      } else {
+        return  // unused squad member — didn't play
+      }
 
       ensurePlayer(name)
       bucket.add(name)
+      result[name].mins = Math.max(result[name].mins, mins)
 
       const stats = entry.stats || []
-      const mins = getStat(stats, 'minutesPlayed') || (entry.starter ? 90 : 0)
-      result[name].mins = Math.max(result[name].mins, mins)
-      result[name].goals   += getStat(stats, 'goals')
-      result[name].assists += getStat(stats, 'assists')
-      result[name].yellow  += getStat(stats, 'yellowCards')
-      result[name].red     += getStat(stats, 'redCards')
-      result[name].saves   += getStat(stats, 'saves')
+      // ESPN stat names: totalGoals, goalAssists, yellowCards, redCards, saves, ownGoals
+      result[name].goals     += getStat(stats, 'totalGoals')
+      result[name].assists   += getStat(stats, 'goalAssists')
+      result[name].yellow    += getStat(stats, 'yellowCards')
+      result[name].red       += getStat(stats, 'redCards')
+      result[name].saves     += getStat(stats, 'saves')
+      result[name].own_goal  += getStat(stats, 'ownGoals')
     })
   })
 
@@ -146,7 +184,9 @@ export function parseEspnMatchStats(summaryData, homeScore, awayScore) {
   homePlayerNames.forEach(name => { if (result[name]) result[name].clean_team = homeClean })
   awayPlayerNames.forEach(name => { if (result[name]) result[name].clean_team = awayClean })
 
-  console.log('[parseEspnMatchStats] players parsed:', Object.keys(result).length)
+  const scorers = Object.entries(result).filter(([, s]) => s.goals > 0).map(([n, s]) => `${n}(${s.goals}g)`)
+  console.log('[parseEspnMatchStats] players parsed:', Object.keys(result).length,
+    '| scorers:', scorers.length ? scorers.join(', ') : 'none')
   return result
 }
 
