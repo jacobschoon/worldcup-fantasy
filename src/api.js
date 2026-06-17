@@ -112,6 +112,36 @@ export async function fetchFinishedMatchesWithGoals() {
   }))
 }
 
+// Fetch tournament-wide scorer totals in one call — available on the free tier.
+// Returns { [playerName]: stats } with goals from the API; assists/cards are 0
+// because those fields are not available on the free tier.
+export async function fetchScorers() {
+  const data = await internalFetch('/api/fixtures?type=scorers')
+  const scorers = data.scorers || []
+  console.log(
+    `[fetchScorers] ${scorers.length} scorers; top:`,
+    scorers[0] ? `${scorers[0].player?.name} (${scorers[0].goals}g)` : 'none'
+  )
+  const result = {}
+  scorers.forEach(({ player, goals }) => {
+    if (!player?.name) return
+    result[player.name] = {
+      goals:      goals ?? 0,
+      assists:    0,
+      mins:       90,
+      yellow:     0,
+      red:        0,
+      saves:      0,
+      pen_saved:  0,
+      pen_missed: 0,
+      own_goal:   0,
+      clean_team: false,
+    }
+  })
+  console.log('[fetchScorers] players with goals:', Object.keys(result).length)
+  return result
+}
+
 // Get match data (goals, lineups, bookings) for a specific fixture
 export async function fetchFixtureStats(fixtureId) {
   const path = `/api/matchstats?fixture=${fixtureId}`

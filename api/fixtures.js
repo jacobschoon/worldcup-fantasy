@@ -13,10 +13,15 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'FOOTBALL_API_KEY not configured' })
 
   try {
-    const { status } = req.query
-    const url = status
-      ? `https://api.football-data.org/v4/competitions/WC/matches?status=${status}`
-      : 'https://api.football-data.org/v4/competitions/WC/matches'
+    const { status, type } = req.query
+    let url
+    if (type === 'scorers') {
+      url = 'https://api.football-data.org/v4/competitions/WC/scorers?limit=100'
+    } else if (status) {
+      url = `https://api.football-data.org/v4/competitions/WC/matches?status=${status}`
+    } else {
+      url = 'https://api.football-data.org/v4/competitions/WC/matches'
+    }
     const upstream = await fetch(url, { headers: { 'X-Auth-Token': apiKey } })
     const json = await upstream.json()
     return res.status(upstream.status).json(json)
