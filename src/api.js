@@ -89,6 +89,13 @@ export async function fetchFixtureStats(fixtureId) {
 // matchData: the full match object from GET /matches/{id}
 // Returns: { [playerName]: { goals, assists, mins, yellow, red, saves, pen_saved, pen_missed, own_goal, clean_team } }
 export function parseMatchStats(matchData, homeScore, awayScore) {
+  console.log('[parseMatchStats] match', matchData.id,
+    '|', matchData.homeTeam?.name, homeScore, '-', awayScore, matchData.awayTeam?.name)
+  console.log('[parseMatchStats] goals array:', JSON.stringify(matchData.goals))
+  console.log('[parseMatchStats] bookings array:', JSON.stringify(matchData.bookings))
+  console.log('[parseMatchStats] scorer names from API:',
+    (matchData.goals || []).map(g => g.scorer?.name).filter(Boolean))
+
   const result = {}
   const homeId = matchData.homeTeam?.id
   const homePlayerNames = new Set()
@@ -134,15 +141,15 @@ export function parseMatchStats(matchData, homeScore, awayScore) {
     }
   })
 
-  // Yellow and red cards
+  // Yellow and red cards — football-data.org card strings are YELLOW_CARD / RED_CARD / YELLOW_RED_CARD
   ;(matchData.bookings || []).forEach(({ player, card, team }) => {
     if (!player?.name) return
     ensurePlayer(player.name)
     const isHome = team?.id === homeId
     ;(isHome ? homePlayerNames : awayPlayerNames).add(player.name)
     if (!result[player.name].mins) result[player.name].mins = 90
-    if (card === 'YELLOW') result[player.name].yellow += 1
-    else if (card === 'RED' || card === 'YELLOW_RED') result[player.name].red += 1
+    if (card === 'YELLOW_CARD') result[player.name].yellow += 1
+    else if (card === 'RED_CARD' || card === 'YELLOW_RED_CARD') result[player.name].red += 1
   })
 
   // Clean sheets — team conceded 0 goals
@@ -151,7 +158,24 @@ export function parseMatchStats(matchData, homeScore, awayScore) {
   homePlayerNames.forEach(name => { if (result[name]) result[name].clean_team = homeClean })
   awayPlayerNames.forEach(name => { if (result[name]) result[name].clean_team = awayClean })
 
+  console.log('[parseMatchStats] result keys:', Object.keys(result))
   return result
+}
+
+// Look up a squad player's stats from a parsed stats object.
+// Tries exact name match first, then falls back to matching by last name only
+// to handle API name variants (e.g. "K. Mbappé" vs "Kylian Mbappé",
+// "Erling Braut Haaland" vs "Erling Haaland").
+export function lookupPlayerStats(statsObj, playerName) {
+  if (statsObj[playerName]) return statsObj[playerName]
+  const lastName = playerName.split(' ').slice(-1)[0].toLowerCase()
+  const key = Object.keys(statsObj).find(
+    k => k.split(' ').slice(-1)[0].toLowerCase() === lastName
+  )
+  if (key) {
+    console.log(`[lookupPlayerStats] fuzzy match: "${playerName}" → "${key}"`)
+  }
+  return key ? statsObj[key] : null
 }
 
 // Group normalised fixtures by matchday round string

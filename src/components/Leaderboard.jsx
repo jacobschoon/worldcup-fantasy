@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { DEFAULT_RULES, calcPlayerPts, displayName, shortTeam } from '../data.js'
-import { fetchFixtures, fetchFixtureStats, parseMatchStats, groupFixturesByMatchday } from '../api.js'
+import { fetchFixtures, fetchFixtureStats, parseMatchStats, groupFixturesByMatchday, lookupPlayerStats } from '../api.js'
 import styles from './Leaderboard.module.css'
 
 const MOCK_TEAMS = [
@@ -222,7 +222,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
     if (liveStatKeys.length > 0) {
       const pts = liveStatKeys.reduce((s, k) => {
         const st = getStats(k)
-        return s + calcPlayerPts(p, st[p.name] || null, rules).pts
+        return s + calcPlayerPts(p, lookupPlayerStats(st, p.name), rules).pts
       }, 0)
       return { pts, breakdown: [] }
     }
