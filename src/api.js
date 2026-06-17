@@ -1,8 +1,8 @@
-// football-data.org v4 — requests are proxied through our own serverless functions
-// so the API key never touches the browser. See api/fixtures.js and api/matchstats.js.
-// World Cup 2026: competition code WC
+// ESPN public API — no auth required.
+// Fixtures: site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard
+// Match summary: site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary
+// Proxied through /api/fixtures and /api/espnmatch so the browser never hits ESPN directly.
 
-// Cache results in localStorage to avoid burning requests
 function cacheKey(url) {
   return `wc_cache_${url}`
 }
@@ -11,7 +11,6 @@ function fromCache(url) {
     const raw = localStorage.getItem(cacheKey(url))
     if (!raw) return null
     const { data, ts } = JSON.parse(raw)
-    // Cache valid for 3 hours
     if (Date.now() - ts < 3 * 60 * 60 * 1000) return data
   } catch { /* ignore */ }
   return null
@@ -32,141 +31,79 @@ async function internalFetch(path) {
   return json
 }
 
-function normalizeStatus(status) {
-  const map = {
-    FINISHED: 'FT', IN_PLAY: 'LIVE', PAUSED: 'HT',
-    EXTRA_TIME: 'ET', PENALTY_SHOOTOUT: 'P',
-    SCHEDULED: 'NS', TIMED: 'NS',
-    POSTPONED: 'PST', SUSPENDED: 'SUSP', CANCELLED: 'CANC',
+function normalizeEspnStatus(comp) {
+  const type = comp?.status?.type
+  if (!type) return 'NS'
+  const { state, completed, name } = type
+  if (state === 'post' || completed === true) return 'FT'
+  if (state === 'in') {
+    if (name === 'STATUS_HALFTIME') return 'HT'
+    if (name === 'STATUS_EXTRA_TIME') return 'ET'
+    if (name === 'STATUS_SHOOTOUT') return 'P'
+    return 'LIVE'
   }
-  return map[status] || status
+  if (name === 'STATUS_POSTPONED') return 'PST'
+  if (name === 'STATUS_CANCELED' || name === 'STATUS_CANCELLED') return 'CANC'
+  return 'NS'
 }
 
-function formatRound(m) {
-  if (m.stage === 'GROUP_STAGE') return `Group Stage - Matchday ${m.matchday}`
-  const stages = {
-    LAST_16: 'Round of 16',
-    QUARTER_FINALS: 'Quarter-finals',
-    SEMI_FINALS: 'Semi-finals',
-    THIRD_PLACE: 'Third-place play-off',
-    FINAL: 'Final',
-  }
-  return stages[m.stage] || m.stage || 'Unknown'
+function formatEspnRound(event) {
+  const headline = event.competitions?.[0]?.notes?.[0]?.headline || ''
+  if (headline) return headline
+  const week = event.week?.number
+  return week ? `Group Stage - Matchday ${week}` : 'Unknown'
 }
 
-// Normalize a football-data.org match into the shape the rest of the app expects
-function normalizeMatch(m) {
+function normalizeMatch(event) {
+  const comp = event.competitions?.[0] || {}
+  const home = comp.competitors?.find(c => c.homeAway === 'home') || {}
+  const away = comp.competitors?.find(c => c.homeAway === 'away') || {}
+  const homeScore = home.score != null ? Number(home.score) : null
+  const awayScore = away.score != null ? Number(away.score) : null
+  const status = normalizeEspnStatus(comp)
   return {
     fixture: {
-      id: m.id,
-      date: m.utcDate,
-      status: { short: normalizeStatus(m.status) },
+      id: event.id,
+      date: event.date,
+      status: { short: status },
     },
-    league: { round: formatRound(m) },
+    league: { round: formatEspnRound(event) },
     teams: {
-      home: { name: m.homeTeam?.name || '' },
-      away: { name: m.awayTeam?.name || '' },
+      home: { name: home.team?.displayName || '' },
+      away: { name: away.team?.displayName || '' },
     },
     goals: {
-      home: m.score?.fullTime?.home ?? null,
-      away: m.score?.fullTime?.away ?? null,
+      home: (status === 'FT' || status === 'LIVE' || status === 'HT' || status === 'ET' || status === 'P') ? homeScore : null,
+      away: (status === 'FT' || status === 'LIVE' || status === 'HT' || status === 'ET' || status === 'P') ? awayScore : null,
     },
   }
 }
 
-// Get all fixtures for WC 2026
 export async function fetchFixtures() {
-  // Bust cache if it contains old API-Football format ({ response: [...] } instead of { matches: [...] })
-  const cached = fromCache('/api/fixtures')
-  if (cached !== null && !cached.matches) {
-    console.log('[fetchFixtures] clearing stale API-Football cache')
-    localStorage.removeItem(cacheKey('/api/fixtures'))
-  }
-  const data = await internalFetch('/api/fixtures')
-  console.log('[fetchFixtures] raw response keys:', Object.keys(data))
-  return (data.matches || []).map(normalizeMatch)
-}
-
-// Fetch all finished WC matches in a single bulk call with goals embedded.
-// Returns an array of { matchData, round, homeScore, awayScore, fixture } objects
-// so callers can pass matchData straight to parseMatchStats without extra requests.
-// This avoids the 10 req/min rate limit that per-match fetchFixtureStats calls hit.
-export async function fetchFinishedMatchesWithGoals() {
-  const path = '/api/fixtures?status=FINISHED'
-  // Bust stale old-format cache
+  const path = '/api/fixtures'
+  // Bust stale non-ESPN cache (old format had .matches or .response, ESPN has .events)
   const cached = fromCache(path)
-  if (cached !== null && !cached.matches) {
+  if (cached !== null && !cached.events) {
+    console.log('[fetchFixtures] clearing stale non-ESPN cache')
     localStorage.removeItem(cacheKey(path))
   }
   const data = await internalFetch(path)
-  const raw = data.matches || []
-  if (raw.length > 0) {
-    console.log(`[fetchFinishedMatchesWithGoals] ${raw.length} matches; first match goals:`, raw[0].goals)
-  }
-  return raw.map(m => ({
-    matchData: m,
-    round: formatRound(m),
-    homeScore: m.score?.fullTime?.home ?? 0,
-    awayScore: m.score?.fullTime?.away ?? 0,
-    fixture: normalizeMatch(m),
-  }))
+  console.log('[fetchFixtures] raw response keys:', Object.keys(data))
+  return (data.events || []).map(normalizeMatch)
 }
 
-// Fetch tournament-wide scorer totals in one call — available on the free tier.
-// Returns { [playerName]: stats } with goals from the API; assists/cards are 0
-// because those fields are not available on the free tier.
-export async function fetchScorers() {
-  const data = await internalFetch('/api/fixtures?type=scorers')
-  const scorers = data.scorers || []
-  console.log(
-    `[fetchScorers] ${scorers.length} scorers; top:`,
-    scorers[0] ? `${scorers[0].player?.name} (${scorers[0].goals}g)` : 'none'
-  )
-  const result = {}
-  scorers.forEach(({ player, goals }) => {
-    if (!player?.name) return
-    result[player.name] = {
-      goals:      goals ?? 0,
-      assists:    0,
-      mins:       90,
-      yellow:     0,
-      red:        0,
-      saves:      0,
-      pen_saved:  0,
-      pen_missed: 0,
-      own_goal:   0,
-      clean_team: false,
-    }
-  })
-  console.log('[fetchScorers] players with goals:', Object.keys(result).length)
-  return result
+export async function fetchEspnMatchStats(eventId) {
+  return internalFetch(`/api/espnmatch?eventId=${eventId}`)
 }
 
-// Get match data (goals, lineups, bookings) for a specific fixture
-export async function fetchFixtureStats(fixtureId) {
-  const path = `/api/matchstats?fixture=${fixtureId}`
-  // Bust cache if it contains old API-Football format (an array of team data objects)
-  const cached = fromCache(path)
-  if (Array.isArray(cached) || (cached !== null && cached.response !== undefined)) {
-    console.log(`[fetchFixtureStats] clearing stale API-Football cache for fixture ${fixtureId}`)
-    localStorage.removeItem(cacheKey(path))
-  }
-  return internalFetch(path)
-}
-
-// Parse football-data.org match data into our scoring format.
-// matchData: the full match object from GET /matches/{id}
+// Parse ESPN summary rosters into our scoring format.
+// summaryData: full response from GET /api/espnmatch?eventId=ID
 // Returns: { [playerName]: { goals, assists, mins, yellow, red, saves, pen_saved, pen_missed, own_goal, clean_team } }
-export function parseMatchStats(matchData, homeScore, awayScore) {
-  console.log('[parseMatchStats] match', matchData.id,
-    '|', matchData.homeTeam?.name, homeScore, '-', awayScore, matchData.awayTeam?.name)
-  console.log('[parseMatchStats] goals array:', JSON.stringify(matchData.goals))
-  console.log('[parseMatchStats] bookings array:', JSON.stringify(matchData.bookings))
-  console.log('[parseMatchStats] scorer names from API:',
-    (matchData.goals || []).map(g => g.scorer?.name).filter(Boolean))
+export function parseEspnMatchStats(summaryData, homeScore, awayScore) {
+  console.log('[parseEspnMatchStats] homeScore:', homeScore, 'awayScore:', awayScore)
+  console.log('[parseEspnMatchStats] roster entries:', summaryData?.rosters?.length ?? 0)
 
   const result = {}
-  const homeId = matchData.homeTeam?.id
   const homePlayerNames = new Set()
   const awayPlayerNames = new Set()
 
@@ -176,65 +113,45 @@ export function parseMatchStats(matchData, homeScore, awayScore) {
     }
   }
 
-  // Starters from lineups — set mins to 90 when lineup data is present
-  if (Array.isArray(matchData.lineups)) {
-    matchData.lineups.forEach(lineup => {
-      const isHome = lineup.team?.id === homeId
-      const bucket = isHome ? homePlayerNames : awayPlayerNames
-      ;(lineup.startXI || []).forEach(({ player }) => {
-        if (!player?.name) return
-        ensurePlayer(player.name)
-        result[player.name].mins = 90
-        bucket.add(player.name)
-      })
-    })
+  function getStat(stats, statName) {
+    const entry = (stats || []).find(s => s.name === statName)
+    return entry ? Number(entry.value) : 0
   }
 
-  // Goals and assists
-  ;(matchData.goals || []).forEach(({ type, team, scorer, assist }) => {
-    if (scorer?.name) {
-      ensurePlayer(scorer.name)
-      const isHome = team?.id === homeId
-      ;(isHome ? homePlayerNames : awayPlayerNames).add(scorer.name)
-      if (!result[scorer.name].mins) result[scorer.name].mins = 90
-      if (type === 'OWN_GOAL') {
-        result[scorer.name].own_goal += 1
-      } else {
-        result[scorer.name].goals += 1
-      }
-    }
-    if (assist?.name) {
-      ensurePlayer(assist.name)
-      result[assist.name].assists += 1
-      if (!result[assist.name].mins) result[assist.name].mins = 90
-    }
+  ;(summaryData?.rosters || []).forEach(roster => {
+    const isHome = roster.homeAway === 'home'
+    const bucket = isHome ? homePlayerNames : awayPlayerNames
+
+    ;(roster.roster || []).forEach(entry => {
+      const name = entry.athlete?.displayName
+      if (!name) return
+      if (!entry.played && !entry.starter) return
+
+      ensurePlayer(name)
+      bucket.add(name)
+
+      const stats = entry.stats || []
+      const mins = getStat(stats, 'minutesPlayed') || (entry.starter ? 90 : 0)
+      result[name].mins = Math.max(result[name].mins, mins)
+      result[name].goals   += getStat(stats, 'goals')
+      result[name].assists += getStat(stats, 'assists')
+      result[name].yellow  += getStat(stats, 'yellowCards')
+      result[name].red     += getStat(stats, 'redCards')
+      result[name].saves   += getStat(stats, 'saves')
+    })
   })
 
-  // Yellow and red cards — football-data.org card strings are YELLOW_CARD / RED_CARD / YELLOW_RED_CARD
-  ;(matchData.bookings || []).forEach(({ player, card, team }) => {
-    if (!player?.name) return
-    ensurePlayer(player.name)
-    const isHome = team?.id === homeId
-    ;(isHome ? homePlayerNames : awayPlayerNames).add(player.name)
-    if (!result[player.name].mins) result[player.name].mins = 90
-    if (card === 'YELLOW_CARD') result[player.name].yellow += 1
-    else if (card === 'RED_CARD' || card === 'YELLOW_RED_CARD') result[player.name].red += 1
-  })
-
-  // Clean sheets — team conceded 0 goals
   const homeClean = awayScore === 0
   const awayClean = homeScore === 0
   homePlayerNames.forEach(name => { if (result[name]) result[name].clean_team = homeClean })
   awayPlayerNames.forEach(name => { if (result[name]) result[name].clean_team = awayClean })
 
-  console.log('[parseMatchStats] result keys:', Object.keys(result))
+  console.log('[parseEspnMatchStats] players parsed:', Object.keys(result).length)
   return result
 }
 
 // Look up a squad player's stats from a parsed stats object.
-// Tries exact name match first, then falls back to matching by last name only
-// to handle API name variants (e.g. "K. Mbappé" vs "Kylian Mbappé",
-// "Erling Braut Haaland" vs "Erling Haaland").
+// Tries exact name match first, then falls back to matching by last name only.
 export function lookupPlayerStats(statsObj, playerName) {
   if (statsObj[playerName]) return statsObj[playerName]
   const lastName = playerName.split(' ').slice(-1)[0].toLowerCase()

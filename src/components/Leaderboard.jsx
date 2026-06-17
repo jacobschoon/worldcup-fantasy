@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { DEFAULT_RULES, calcPlayerPts, displayName, shortTeam } from '../data.js'
-import { fetchFixtures, fetchScorers, lookupPlayerStats } from '../api.js'
+import { fetchFixtures, fetchEspnMatchStats, parseEspnMatchStats, lookupPlayerStats } from '../api.js'
 import styles from './Leaderboard.module.css'
 
 const MOCK_TEAMS = [
@@ -166,28 +166,34 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   async function refresh() {
     setLoading(true); setApiStatus('')
     try {
-      // Fetch all fixtures for "Matches played" count display
       const allFixtures = await fetchFixtures()
       setFixtures(allFixtures)
-      const finishedCount = allFixtures.filter(f => f.fixture.status.short === 'FT').length
-      console.log(`[refresh] ${finishedCount} finished of ${allFixtures.length} total fixtures`)
+      const finished = allFixtures.filter(f => f.fixture.status.short === 'FT')
+      console.log(`[refresh] ${finished.length} finished of ${allFixtures.length} total fixtures`)
 
-      // Fetch tournament-wide scorer totals — one API call for all goals data.
-      // Assists and cards are not available on the free tier, so they are 0.
-      const scorerStats = await fetchScorers()
-      console.log(`[refresh] ${Object.keys(scorerStats).length} players with goals`)
+      const roundStats = {}
+      for (const f of finished) {
+        const summary = await fetchEspnMatchStats(f.fixture.id)
+        const parsed = parseEspnMatchStats(summary, f.goals.home ?? 0, f.goals.away ?? 0)
+        const round = f.league.round || 'Unknown'
+        if (!roundStats[round]) roundStats[round] = {}
+        Object.assign(roundStats[round], parsed)
+        console.log(`[refresh] ${f.teams.home.name} v ${f.teams.away.name} (${round}): ${Object.keys(parsed).length} players`)
+      }
 
-      // Scorers give cumulative tournament totals, not per-round — store under
-      // a single 'tournament' key so liveStatKeys/getStats still works correctly.
-      const roundStats = { tournament: scorerStats }
+      console.log('[refresh] rounds with stats:', Object.keys(roundStats))
       setApiStats(roundStats)
 
-      localStorage.setItem('wc_stats_tournament', JSON.stringify(scorerStats))
-      fetch('/api/stats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ round: 'tournament', stats: scorerStats }),
-      }).catch(() => {})
+      Object.entries(roundStats).forEach(([round, stats]) => {
+        localStorage.setItem(`wc_stats_${round}`, JSON.stringify(stats))
+      })
+      Object.entries(roundStats).forEach(([round, stats]) => {
+        fetch('/api/stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ round, stats }),
+        }).catch(() => {})
+      })
 
       // Refresh team list
       try {
@@ -201,17 +207,20 @@ export default function Leaderboard({ onEditTeam, setTab }) {
         ? apiTeams
         : (() => { try { return JSON.parse(localStorage.getItem('wc_teams') || '[]') } catch { return [] } })()
       const teamsForLog = currentTeams.length ? currentTeams : MOCK_TEAMS
-      console.log('[refresh] team totals (goals only):')
+      console.log('[refresh] team totals:')
       teamsForLog.forEach(team => {
-        const total = team.squad.reduce((sum, p) =>
-          sum + calcPlayerPts(p, lookupPlayerStats(scorerStats, p.name), currentRules).pts, 0)
+        const total = team.squad.reduce((sum, p) => {
+          const pts = Object.keys(roundStats).reduce((s, k) =>
+            s + calcPlayerPts(p, lookupPlayerStats(roundStats[k], p.name), currentRules).pts, 0)
+          return sum + pts
+        }, 0)
         console.log(`  ${team.manager} (${team.teamName || '—'}): ${total} pts`)
       })
 
-      setApiStatus('Updated (goals only — assists & cards not on free tier)')
+      setApiStatus('Updated just now')
     } catch (e) {
       console.error('[refresh] error:', e)
-      setApiStatus('Error fetching data — check that FOOTBALL_API_KEY is set in Vercel')
+      setApiStatus('Error fetching match data — check the console for details')
     }
     setLoading(false)
   }

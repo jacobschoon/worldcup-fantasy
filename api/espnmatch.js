@@ -9,9 +9,12 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
+  const { eventId } = req.query
+  if (!eventId) return res.status(400).json({ error: 'Missing eventId query param' })
+
   try {
     const upstream = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?limit=200&dates=20260611-20260719'
+      `https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary?event=${eventId}`
     )
     const json = await upstream.json()
     return res.status(upstream.status).json(json)
