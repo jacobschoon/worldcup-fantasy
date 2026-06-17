@@ -87,6 +87,31 @@ export async function fetchFixtures() {
   return (data.matches || []).map(normalizeMatch)
 }
 
+// Fetch all finished WC matches in a single bulk call with goals embedded.
+// Returns an array of { matchData, round, homeScore, awayScore, fixture } objects
+// so callers can pass matchData straight to parseMatchStats without extra requests.
+// This avoids the 10 req/min rate limit that per-match fetchFixtureStats calls hit.
+export async function fetchFinishedMatchesWithGoals() {
+  const path = '/api/fixtures?status=FINISHED'
+  // Bust stale old-format cache
+  const cached = fromCache(path)
+  if (cached !== null && !cached.matches) {
+    localStorage.removeItem(cacheKey(path))
+  }
+  const data = await internalFetch(path)
+  const raw = data.matches || []
+  if (raw.length > 0) {
+    console.log(`[fetchFinishedMatchesWithGoals] ${raw.length} matches; first match goals:`, raw[0].goals)
+  }
+  return raw.map(m => ({
+    matchData: m,
+    round: formatRound(m),
+    homeScore: m.score?.fullTime?.home ?? 0,
+    awayScore: m.score?.fullTime?.away ?? 0,
+    fixture: normalizeMatch(m),
+  }))
+}
+
 // Get match data (goals, lineups, bookings) for a specific fixture
 export async function fetchFixtureStats(fixtureId) {
   const path = `/api/matchstats?fixture=${fixtureId}`

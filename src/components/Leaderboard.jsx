@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { DEFAULT_RULES, calcPlayerPts, displayName, shortTeam } from '../data.js'
-import { fetchFixtures, fetchFixtureStats, parseMatchStats, groupFixturesByMatchday, lookupPlayerStats } from '../api.js'
+import { fetchFinishedMatchesWithGoals, parseMatchStats, groupFixturesByMatchday, lookupPlayerStats } from '../api.js'
 import styles from './Leaderboard.module.css'
 
 const MOCK_TEAMS = [
@@ -166,25 +166,24 @@ export default function Leaderboard({ onEditTeam, setTab }) {
   async function refresh() {
     setLoading(true); setApiStatus('')
     try {
-      const allFixtures = await fetchFixtures()
-      setFixtures(allFixtures)
-      const finished = allFixtures.filter(f => f.fixture.status.short === 'FT')
-      console.log(`[refresh] ${finished.length} finished fixtures out of ${allFixtures.length} total`)
+      // Single bulk call — all finished matches with goals embedded — replaces
+      // the N individual fetchFixtureStats calls that hit the 10 req/min limit.
+      const finishedWithGoals = await fetchFinishedMatchesWithGoals()
+      console.log(`[refresh] ${finishedWithGoals.length} finished matches from bulk endpoint`)
 
-      // Accumulate stats in-memory keyed by round
+      setFixtures(finishedWithGoals.map(f => f.fixture))
+
       const roundStats = {}
-      for (const f of finished) {
-        const matchData = await fetchFixtureStats(f.fixture.id)
-        const parsed = parseMatchStats(matchData, f.goals.home, f.goals.away)
-        const round = f.league.round || 'Unknown'
+      finishedWithGoals.forEach(({ matchData, round, homeScore, awayScore }, i) => {
+        if (i === 0) console.log('[refresh] first match goals array:', matchData.goals)
+        const parsed = parseMatchStats(matchData, homeScore, awayScore)
         if (!roundStats[round]) roundStats[round] = {}
         Object.assign(roundStats[round], parsed)
-        console.log(`[refresh] ${f.teams.home.name} v ${f.teams.away.name} (round: ${round}): ${Object.keys(parsed).length} players parsed`)
-      }
+        console.log(`[refresh] ${matchData.homeTeam?.name} v ${matchData.awayTeam?.name} (${round}): ${Object.keys(parsed).length} players parsed`)
+      })
 
       console.log('[refresh] rounds with stats:', Object.keys(roundStats))
 
-      // Update state directly — no Redis round-trip needed for the UI to update
       setApiStats(roundStats)
 
       // Save to localStorage for offline access
@@ -192,7 +191,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
         localStorage.setItem(`wc_stats_${round}`, JSON.stringify(stats))
       })
 
-      // Post to Redis for cross-device sharing (fire and forget — don't block the UI)
+      // Post to Redis for cross-device sharing (fire and forget)
       Object.entries(roundStats).forEach(([round, stats]) => {
         fetch('/api/stats', {
           method: 'POST',
@@ -201,7 +200,7 @@ export default function Leaderboard({ onEditTeam, setTab }) {
         }).catch(() => {})
       })
 
-      // Refresh team list in case new teams were added
+      // Refresh team list
       try {
         const tr = await fetch('/api/teams')
         if (tr.ok) { const d = await tr.json(); if (Array.isArray(d)) setApiTeams(d) }
